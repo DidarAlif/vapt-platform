@@ -26,6 +26,12 @@ def startup_event():
     init_db()
 
 
+@app.get("/")
+def health_check():
+    """Health check endpoint for Railway."""
+    return {"status": "healthy", "service": "vapt-api"}
+
+
 class ScanRequest(BaseModel):
     name: str
     email: str
