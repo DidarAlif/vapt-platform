@@ -6,9 +6,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database URL from environment or default to Docker PostgreSQL
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
+# Database URL from environment (check both cases) or default to Docker PostgreSQL
+DATABASE_URL = (
+    os.getenv("DATABASE_URL") or 
+    os.getenv("database_url") or
     "postgresql://vapt:vaptpass@localhost:5432/vaptdb"
 )
 
