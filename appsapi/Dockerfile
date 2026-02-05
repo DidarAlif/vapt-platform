@@ -28,8 +28,9 @@ COPY . .
 # Create work directory for scan outputs
 RUN mkdir -p work
 
-# Expose port
-EXPOSE 8000
+# Railway provides PORT env variable
+ENV PORT=8000
+EXPOSE $PORT
 
-# Start the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application using Railway's PORT
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT
