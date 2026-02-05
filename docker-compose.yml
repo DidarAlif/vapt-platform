@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: vapt
+      POSTGRES_PASSWORD: vaptpass
+      POSTGRES_DB: vaptdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - vapt_pg:/var/lib/postgresql/data
+
+volumes:
+  vapt_pg:
