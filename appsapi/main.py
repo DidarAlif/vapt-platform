@@ -233,3 +233,51 @@ def delete_scan(scan_id: str, user: User = Depends(require_user), db: Session = 
     db.delete(scan)
     db.commit()
     return {"message": "Scan deleted"}
+
+
+# ============== Report Export Routes ==============
+from fastapi.responses import HTMLResponse, JSONResponse
+from report import generate_html_report, generate_json_report
+from owasp import map_to_owasp, get_owasp_summary
+
+
+@app.get("/scans/{scan_id}/report/html", response_class=HTMLResponse)
+def export_html_report(scan_id: str, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Export scan report as HTML."""
+    scan = db.query(ScanRecord).filter(ScanRecord.id == scan_id, ScanRecord.user_id == user.id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    scan_data = {
+        "target_url": scan.target_url,
+        "scan_mode": scan.scan_mode,
+        "created_at": scan.created_at.isoformat(),
+        **(scan.scan_results or {})
+    }
+    
+    html_content = generate_html_report(scan_data)
+    return HTMLResponse(content=html_content)
+
+
+@app.get("/scans/{scan_id}/report/json")
+def export_json_report(scan_id: str, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Export scan report as JSON with OWASP mapping."""
+    scan = db.query(ScanRecord).filter(ScanRecord.id == scan_id, ScanRecord.user_id == user.id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    scan_data = {
+        "target_url": scan.target_url,
+        "scan_mode": scan.scan_mode,
+        "created_at": scan.created_at.isoformat(),
+        **(scan.scan_results or {})
+    }
+    
+    return generate_json_report(scan_data)
+
+
+@app.get("/owasp")
+def get_owasp_info():
+    """Get OWASP Top 10 2021 categories."""
+    from owasp import OWASP_TOP_10
+    return OWASP_TOP_10
