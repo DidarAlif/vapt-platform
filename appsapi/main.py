@@ -1,19 +1,26 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional, List
 import uuid
-from scanner import run_nuclei_scan
+from scanner import run_nuclei_scan, run_header_scan, run_network_scan
 from normalize import normalize_nuclei
 from database import get_db, init_db
-from models import ScanRecord
+from models import ScanRecord, User
+from auth import (
+    UserCreate, UserLogin, UserResponse, TokenResponse,
+    create_user, authenticate_user, get_user_by_email,
+    create_access_token, create_refresh_token, verify_token,
+    get_current_user, require_user
+)
 
-app = FastAPI()
+app = FastAPI(title="ReconShield API", description="Advanced Security Reconnaissance Platform")
 
-# Add CORS middleware to allow frontend requests
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to specific origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,46 +33,203 @@ def startup_event():
     init_db()
 
 
+# ============== Health Check ==============
 @app.get("/")
 def health_check():
-    """Health check endpoint for Railway."""
-    return {"status": "healthy", "service": "vapt-api"}
+    return {"status": "healthy", "service": "reconshield-api", "version": "2.0"}
 
 
+# ============== Authentication Routes ==============
+@app.post("/auth/register", response_model=TokenResponse)
+def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user."""
+    existing = get_user_by_email(db, user_data.email)
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user = create_user(db, user_data)
+    
+    access_token = create_access_token({"sub": str(user.id), "email": user.email})
+    refresh_token = create_refresh_token({"sub": str(user.id), "email": user.email})
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.name,
+            role=user.role,
+            created_at=user.created_at
+        )
+    )
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    """Login and get tokens."""
+    user = authenticate_user(db, credentials.email, credentials.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    access_token = create_access_token({"sub": str(user.id), "email": user.email})
+    refresh_token = create_refresh_token({"sub": str(user.id), "email": user.email})
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.name,
+            role=user.role,
+            created_at=user.created_at
+        )
+    )
+
+
+@app.get("/auth/me", response_model=UserResponse)
+def get_me(user: User = Depends(require_user)):
+    """Get current user info."""
+    return UserResponse(
+        id=str(user.id),
+        email=user.email,
+        name=user.name,
+        role=user.role,
+        created_at=user.created_at
+    )
+
+
+# ============== Scan Routes ==============
 class ScanRequest(BaseModel):
     name: str
     email: str
     target: str
+    scan_mode: str = "quick"
+    categories: Optional[List[str]] = None
+
+
+def calculate_risk_score(findings: list) -> int:
+    if not findings:
+        return 0
+    weights = {"critical": 40, "high": 25, "medium": 15, "low": 5, "info": 1}
+    score = sum(weights.get(f.get("severity", "info"), 0) for f in findings)
+    return min(100, score)
+
+
+def analyze_headers(target: str) -> list:
+    import requests
+    headers_to_check = [
+        {"name": "Content-Security-Policy", "risk": "high"},
+        {"name": "Strict-Transport-Security", "risk": "high"},
+        {"name": "X-Frame-Options", "risk": "medium"},
+        {"name": "X-Content-Type-Options", "risk": "low"},
+        {"name": "Referrer-Policy", "risk": "medium"},
+    ]
+    
+    results = []
+    try:
+        response = requests.head(target, timeout=10, allow_redirects=True)
+        for h in headers_to_check:
+            value = response.headers.get(h["name"])
+            results.append({
+                "name": h["name"],
+                "present": value is not None,
+                "value": value,
+                "risk": h["risk"],
+                "recommendation": f"{'Configured correctly' if value else 'Add ' + h['name'] + ' header'}"
+            })
+    except:
+        for h in headers_to_check:
+            results.append({"name": h["name"], "present": False, "value": None, "risk": h["risk"], "recommendation": "Could not check"})
+    return results
+
+
+def get_scan_templates(mode: str, categories: Optional[List[str]] = None) -> str:
+    mode_templates = {
+        "quick": "technologies,exposures,misconfiguration",
+        "full": "cves,vulnerabilities,exposures,misconfiguration,takeovers",
+        "network": "network,ssl,dns",
+        "custom": ",".join(categories) if categories else "cves,misconfiguration"
+    }
+    return mode_templates.get(mode, mode_templates["quick"])
 
 
 @app.post("/scan")
-def start_scan(req: ScanRequest, db: Session = Depends(get_db)):
+def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user)):
     scan_id = str(uuid.uuid4())
-    raw_results = run_nuclei_scan(req.target, scan_id)
+    templates = get_scan_templates(req.scan_mode, req.categories)
     
-    # Normalize results for frontend consumption
+    raw_results = run_nuclei_scan(req.target, scan_id, templates)
     normalized = [normalize_nuclei(item) for item in raw_results]
     
-    # Format results for response
     formatted_results = [
         {
             "template_id": item.get("template-id", f"finding-{i}"),
             "name": n["title"],
             "severity": n["severity"],
             "matched_at": n["affected_url"],
-            "description": n["description"] or "No description available"
+            "description": n["description"] or "No description available",
+            "category": item.get("type", "unknown")
         }
         for i, (item, n) in enumerate(zip(raw_results, normalized))
     ]
     
-    # Save scan record to database
+    headers = analyze_headers(req.target)
+    risk_score = calculate_risk_score(formatted_results)
+    
+    # Save scan record
     scan_record = ScanRecord(
+        user_id=user.id if user else None,
         name=req.name,
         email=req.email,
         target_url=req.target,
-        scan_results=formatted_results
+        scan_mode=req.scan_mode,
+        scan_results={"findings": formatted_results, "headers": headers, "risk_score": risk_score}
     )
     db.add(scan_record)
     db.commit()
     
-    return formatted_results
+    return {"scan_id": scan_id, "findings": formatted_results, "headers": headers, "tech_stack": [], "risk_score": risk_score}
+
+
+@app.get("/scans")
+def get_scans(user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Get scan history for authenticated user."""
+    scans = db.query(ScanRecord).filter(ScanRecord.user_id == user.id).order_by(ScanRecord.created_at.desc()).all()
+    return [
+        {
+            "id": str(scan.id),
+            "target_url": scan.target_url,
+            "scan_mode": scan.scan_mode,
+            "created_at": scan.created_at.isoformat(),
+            "risk_score": scan.scan_results.get("risk_score", 0) if scan.scan_results else 0
+        }
+        for scan in scans
+    ]
+
+
+@app.get("/scans/{scan_id}")
+def get_scan(scan_id: str, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Get specific scan details."""
+    scan = db.query(ScanRecord).filter(ScanRecord.id == scan_id, ScanRecord.user_id == user.id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return {
+        "id": str(scan.id),
+        "target_url": scan.target_url,
+        "scan_mode": scan.scan_mode,
+        "created_at": scan.created_at.isoformat(),
+        "results": scan.scan_results
+    }
+
+
+@app.delete("/scans/{scan_id}")
+def delete_scan(scan_id: str, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Delete a scan."""
+    scan = db.query(ScanRecord).filter(ScanRecord.id == scan_id, ScanRecord.user_id == user.id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    db.delete(scan)
+    db.commit()
+    return {"message": "Scan deleted"}
