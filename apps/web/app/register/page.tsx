@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+// Rebuild trigger: 2026-02-07T00:19
 
 export default function RegisterPage() {
     const router = useRouter();
