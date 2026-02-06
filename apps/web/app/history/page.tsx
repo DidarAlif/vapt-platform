@@ -83,9 +83,9 @@ export default function HistoryPage() {
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <Link href="/scan" className="flex items-center gap-3">
                         <div className="w-10 h-10 relative">
-                            <Image src="/logo.png" alt="ReconShield" fill className="object-contain" />
+                            <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
                         </div>
-                        <span className="text-xl font-bold text-gray-100">ReconShield</span>
+                        <span className="text-xl font-bold text-gray-100">ReconScience</span>
                     </Link>
                     <div className="flex items-center gap-4">
                         <Link href="/scan" className="text-gray-400 hover:text-gray-200 text-sm">New Scan</Link>

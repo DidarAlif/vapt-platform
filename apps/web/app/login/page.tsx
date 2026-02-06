@@ -49,10 +49,10 @@ export default function LoginPage() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="w-20 h-20 mx-auto relative mb-4">
-                        <Image src="/logo.png" alt="ReconShield" fill className="object-contain" />
+                        <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-100">Welcome Back</h1>
-                    <p className="text-gray-500 text-sm mt-1">Sign in to your ReconShield account</p>
+                    <p className="text-gray-500 text-sm mt-1">Sign in to your ReconScience account</p>
                 </div>
 
                 {/* Login Form */}

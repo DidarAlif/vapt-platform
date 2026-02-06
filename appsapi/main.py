@@ -15,7 +15,7 @@ from auth import (
     get_current_user, require_user
 )
 
-app = FastAPI(title="ReconShield API", description="Advanced Security Reconnaissance Platform")
+app = FastAPI(title="ReconScience API", description="Advanced Security Reconnaissance Platform")
 
 # CORS middleware
 app.add_middleware(
@@ -36,7 +36,7 @@ def startup_event():
 # ============== Health Check ==============
 @app.get("/")
 def health_check():
-    return {"status": "healthy", "service": "reconshield-api", "version": "2.0"}
+    return {"status": "healthy", "service": "reconscience-api", "version": "2.0"}
 
 
 # ============== Authentication Routes ==============

@@ -226,7 +226,7 @@ export default function ScanPage() {
             </div>
             <div>
               <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-cyan-400 via-emerald-300 to-purple-400 bg-clip-text text-transparent">
-                ReconShield
+                ReconScience
               </h1>
               <p className="text-gray-500 text-sm font-mono">Advanced Security Reconnaissance Platform</p>
             </div>
@@ -532,7 +532,7 @@ export default function ScanPage() {
 
         {/* Footer */}
         <footer className="mt-12 text-center border-t border-gray-800/50 pt-8">
-          <p className="font-mono text-xs text-gray-600">ReconShield • Advanced Security Reconnaissance Platform</p>
+          <p className="font-mono text-xs text-gray-600">ReconScience • Advanced Security Reconnaissance Platform</p>
           <p className="font-mono text-xs text-gray-500 mt-2">© 2026 Alif. All rights reserved.</p>
         </footer>
       </div>

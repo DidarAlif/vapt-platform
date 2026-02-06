@@ -63,10 +63,10 @@ export default function RegisterPage() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="w-20 h-20 mx-auto relative mb-4">
-                        <Image src="/logo.png" alt="ReconShield" fill className="object-contain" />
+                        <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-100">Create Account</h1>
-                    <p className="text-gray-500 text-sm mt-1">Join ReconShield security platform</p>
+                    <p className="text-gray-500 text-sm mt-1">Join ReconScience security platform</p>
                 </div>
 
                 {/* Register Form */}
