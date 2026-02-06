@@ -178,39 +178,50 @@ def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[U
     try:
         scan_id = str(uuid.uuid4())
         
-        # Run the enhanced Nuclei scan with scan mode and categories
+        # Run the enhanced scan with scan mode and categories
         raw_results = run_nuclei_scan(
             target_url=req.target,
             scan_id=scan_id,
-            templates="",  # Using tags instead
+            templates="",
             scan_mode=req.scan_mode,
             categories=req.categories
         )
         
-        # Normalize results
-        normalized = [normalize_nuclei(item) for item in raw_results]
-        
-        formatted_results = [
-            {
-                "template_id": item.get("template-id", f"finding-{i}"),
-                "name": n["title"],
-                "severity": n["severity"],
-                "matched_at": n["affected_url"],
-                "description": n["description"] or "No description available",
-                "category": item.get("info", {}).get("tags", ["unknown"])[0] if item.get("info", {}).get("tags") else "unknown",
-                "reference": item.get("info", {}).get("reference", [])[:3],  # First 3 references
-            }
-            for i, (item, n) in enumerate(zip(raw_results, normalized))
-        ]
+        # Process results - handle both Python-based and Nuclei formats
+        formatted_results = []
+        for i, item in enumerate(raw_results):
+            # Check if it's already formatted (Python-based scanner)
+            if "template_id" in item and "name" in item and "severity" in item:
+                formatted_results.append(item)
+            else:
+                # Nuclei format - normalize it
+                try:
+                    n = normalize_nuclei(item)
+                    formatted_results.append({
+                        "template_id": item.get("template-id", f"finding-{i}"),
+                        "name": n.get("title", "Unknown"),
+                        "severity": n.get("severity", "info"),
+                        "matched_at": n.get("affected_url", req.target),
+                        "description": n.get("description") or "No description available",
+                        "category": item.get("info", {}).get("tags", ["unknown"])[0] if item.get("info", {}).get("tags") else "unknown",
+                    })
+                except:
+                    # Fallback for any parsing issues
+                    formatted_results.append({
+                        "template_id": f"finding-{i}",
+                        "name": item.get("name", "Unknown Issue"),
+                        "severity": item.get("severity", "info"),
+                        "matched_at": item.get("matched_at", req.target),
+                        "description": item.get("description", "Security finding detected"),
+                        "category": "unknown"
+                    })
         
         # Run header analysis
         header_result = run_header_scan(req.target)
-        headers = header_result.get("results", []) if isinstance(header_result, dict) else analyze_headers(req.target)
+        headers = header_result.get("results", []) if isinstance(header_result, dict) else []
         
-        # Run tech detection for quick and full scans
-        tech_stack = []
-        if req.scan_mode in ["quick", "full"]:
-            tech_stack = run_tech_detection(req.target, scan_id)
+        # Run tech detection
+        tech_stack = run_tech_detection(req.target, scan_id)
         
         # Calculate risk score
         risk_score = calculate_risk_score(formatted_results)
