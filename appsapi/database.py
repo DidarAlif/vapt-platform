@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -50,12 +50,56 @@ def get_db():
         db.close()
 
 
+def run_migrations(engine):
+    """Run database migrations to add missing columns."""
+    migrations = [
+        # Add user_id column to scan_records if it doesn't exist
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'scan_records' AND column_name = 'user_id'
+            ) THEN
+                ALTER TABLE scan_records ADD COLUMN user_id UUID REFERENCES users(id);
+            END IF;
+        END $$;
+        """,
+        # Add scan_mode column if it doesn't exist
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'scan_records' AND column_name = 'scan_mode'
+            ) THEN
+                ALTER TABLE scan_records ADD COLUMN scan_mode VARCHAR(50) DEFAULT 'quick';
+            END IF;
+        END $$;
+        """,
+    ]
+    
+    with engine.connect() as conn:
+        for migration in migrations:
+            try:
+                conn.execute(text(migration))
+                conn.commit()
+            except Exception as e:
+                print(f"Migration warning: {e}")
+
+
 def init_db():
     """Initialize database tables."""
     try:
         from models import User, ScanRecord  # Import here to avoid circular imports
         engine = get_engine()
+        
+        # Create tables if they don't exist
         Base.metadata.create_all(bind=engine)
         print("Database tables initialized successfully")
+        
+        # Run migrations for existing tables
+        run_migrations(engine)
+        print("Database migrations completed")
     except Exception as e:
-        print(f"Database initialization error (will retry): {e}")
+        print(f"Database initialization error: {e}")
