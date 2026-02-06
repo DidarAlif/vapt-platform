@@ -55,26 +55,32 @@ def health_check():
 @app.post("/auth/register", response_model=TokenResponse)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
-    existing = get_user_by_email(db, user_data.email)
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    user = create_user(db, user_data)
-    
-    access_token = create_access_token({"sub": str(user.id), "email": user.email})
-    refresh_token = create_refresh_token({"sub": str(user.id), "email": user.email})
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user=UserResponse(
-            id=str(user.id),
-            email=user.email,
-            name=user.name,
-            role=user.role,
-            created_at=user.created_at
+    try:
+        existing = get_user_by_email(db, user_data.email)
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        user = create_user(db, user_data)
+        
+        access_token = create_access_token({"sub": str(user.id), "email": user.email})
+        refresh_token = create_refresh_token({"sub": str(user.id), "email": user.email})
+        
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=UserResponse(
+                id=str(user.id),
+                email=user.email,
+                name=user.name,
+                role=user.role,
+                created_at=user.created_at
+            )
         )
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 
 @app.post("/auth/login", response_model=TokenResponse)
