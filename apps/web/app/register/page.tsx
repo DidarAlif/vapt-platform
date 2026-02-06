@@ -18,6 +18,12 @@ export default function RegisterPage() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
+    const validatePassword = (pwd: string): string | null => {
+        if (pwd.length < 6) return "Password must be at least 6 characters";
+        if (pwd.length > 50) return "Password must be less than 50 characters";
+        return null;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -29,8 +35,9 @@ export default function RegisterPage() {
             return;
         }
 
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters");
+        const passwordError = validatePassword(password);
+        if (passwordError) {
+            setError(passwordError);
             setLoading(false);
             return;
         }
@@ -120,6 +127,7 @@ export default function RegisterPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
+                                maxLength={50}
                                 className="w-full bg-[#0a0a0f] border border-gray-700/50 rounded-lg px-4 py-3 pr-12 text-gray-100 placeholder-gray-600 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all"
                                 placeholder="••••••••"
                             />
@@ -140,6 +148,12 @@ export default function RegisterPage() {
                                 )}
                             </button>
                         </div>
+                        <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            6-50 characters, include letters and numbers for security
+                        </p>
                     </div>
 
                     <div className="mb-6">
@@ -150,6 +164,7 @@ export default function RegisterPage() {
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 required
+                                maxLength={50}
                                 className="w-full bg-[#0a0a0f] border border-gray-700/50 rounded-lg px-4 py-3 pr-12 text-gray-100 placeholder-gray-600 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all"
                                 placeholder="••••••••"
                             />
