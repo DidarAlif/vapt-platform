@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, List
 import uuid
-from scanner import run_nuclei_scan, run_header_scan, run_network_scan
+from scanner import run_nuclei_scan, run_header_scan, run_network_scan, run_tech_detection
 from normalize import normalize_nuclei
 from database import get_db, init_db
 from models import ScanRecord, User
@@ -177,9 +177,17 @@ def get_scan_templates(mode: str, categories: Optional[List[str]] = None) -> str
 def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user)):
     try:
         scan_id = str(uuid.uuid4())
-        templates = get_scan_templates(req.scan_mode, req.categories)
         
-        raw_results = run_nuclei_scan(req.target, scan_id, templates)
+        # Run the enhanced Nuclei scan with scan mode and categories
+        raw_results = run_nuclei_scan(
+            target_url=req.target,
+            scan_id=scan_id,
+            templates="",  # Using tags instead
+            scan_mode=req.scan_mode,
+            categories=req.categories
+        )
+        
+        # Normalize results
         normalized = [normalize_nuclei(item) for item in raw_results]
         
         formatted_results = [
@@ -189,12 +197,22 @@ def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[U
                 "severity": n["severity"],
                 "matched_at": n["affected_url"],
                 "description": n["description"] or "No description available",
-                "category": item.get("type", "unknown")
+                "category": item.get("info", {}).get("tags", ["unknown"])[0] if item.get("info", {}).get("tags") else "unknown",
+                "reference": item.get("info", {}).get("reference", [])[:3],  # First 3 references
             }
             for i, (item, n) in enumerate(zip(raw_results, normalized))
         ]
         
-        headers = analyze_headers(req.target)
+        # Run header analysis
+        header_result = run_header_scan(req.target)
+        headers = header_result.get("results", []) if isinstance(header_result, dict) else analyze_headers(req.target)
+        
+        # Run tech detection for quick and full scans
+        tech_stack = []
+        if req.scan_mode in ["quick", "full"]:
+            tech_stack = run_tech_detection(req.target, scan_id)
+        
+        # Calculate risk score
         risk_score = calculate_risk_score(formatted_results)
         
         # Save scan record
@@ -204,14 +222,30 @@ def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[U
             email=req.email,
             target_url=req.target,
             scan_mode=req.scan_mode,
-            scan_results={"findings": formatted_results, "headers": headers, "risk_score": risk_score}
+            scan_results={
+                "findings": formatted_results,
+                "headers": headers,
+                "tech_stack": tech_stack,
+                "risk_score": risk_score,
+                "scan_id": scan_id
+            }
         )
         db.add(scan_record)
         db.commit()
         
-        return {"scan_id": scan_id, "findings": formatted_results, "headers": headers, "tech_stack": [], "risk_score": risk_score}
+        return {
+            "scan_id": scan_id,
+            "findings": formatted_results,
+            "headers": headers,
+            "tech_stack": tech_stack,
+            "risk_score": risk_score,
+            "findings_count": len(formatted_results),
+            "scan_mode": req.scan_mode
+        }
     except Exception as e:
         print(f"Scan error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
 
 
