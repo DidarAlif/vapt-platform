@@ -30,7 +30,12 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     """Initialize database tables on startup."""
-    init_db()
+    try:
+        init_db()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Warning: Database initialization failed: {e}")
+        print("App will continue - database operations may fail")
 
 
 # ============== Health Check ==============
