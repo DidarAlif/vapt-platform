@@ -1,9 +1,9 @@
 import os
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -15,9 +15,6 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-key-change-in-produc
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 7
-
-# Password hashing - truncate_error=False allows passwords longer than 72 bytes
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
 
 # Bearer token scheme
 security = HTTPBearer(auto_error=False)
@@ -58,17 +55,20 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 
-# Password utilities
+# Password utilities - using bcrypt directly
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    # Bcrypt has a 72-byte limit, truncate if needed
-    plain_password = plain_password[:72]
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against a hash."""
+    password_bytes = plain_password.encode('utf-8')
+    hash_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password_bytes, hash_bytes)
 
 
 def get_password_hash(password: str) -> str:
-    # Bcrypt has a 72-byte limit, truncate if needed
-    password = password[:72]
-    return pwd_context.hash(password)
+    """Hash a password using bcrypt."""
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 # Token utilities
