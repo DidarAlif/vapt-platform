@@ -175,40 +175,44 @@ def get_scan_templates(mode: str, categories: Optional[List[str]] = None) -> str
 
 @app.post("/scan")
 def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user)):
-    scan_id = str(uuid.uuid4())
-    templates = get_scan_templates(req.scan_mode, req.categories)
-    
-    raw_results = run_nuclei_scan(req.target, scan_id, templates)
-    normalized = [normalize_nuclei(item) for item in raw_results]
-    
-    formatted_results = [
-        {
-            "template_id": item.get("template-id", f"finding-{i}"),
-            "name": n["title"],
-            "severity": n["severity"],
-            "matched_at": n["affected_url"],
-            "description": n["description"] or "No description available",
-            "category": item.get("type", "unknown")
-        }
-        for i, (item, n) in enumerate(zip(raw_results, normalized))
-    ]
-    
-    headers = analyze_headers(req.target)
-    risk_score = calculate_risk_score(formatted_results)
-    
-    # Save scan record
-    scan_record = ScanRecord(
-        user_id=user.id if user else None,
-        name=req.name,
-        email=req.email,
-        target_url=req.target,
-        scan_mode=req.scan_mode,
-        scan_results={"findings": formatted_results, "headers": headers, "risk_score": risk_score}
-    )
-    db.add(scan_record)
-    db.commit()
-    
-    return {"scan_id": scan_id, "findings": formatted_results, "headers": headers, "tech_stack": [], "risk_score": risk_score}
+    try:
+        scan_id = str(uuid.uuid4())
+        templates = get_scan_templates(req.scan_mode, req.categories)
+        
+        raw_results = run_nuclei_scan(req.target, scan_id, templates)
+        normalized = [normalize_nuclei(item) for item in raw_results]
+        
+        formatted_results = [
+            {
+                "template_id": item.get("template-id", f"finding-{i}"),
+                "name": n["title"],
+                "severity": n["severity"],
+                "matched_at": n["affected_url"],
+                "description": n["description"] or "No description available",
+                "category": item.get("type", "unknown")
+            }
+            for i, (item, n) in enumerate(zip(raw_results, normalized))
+        ]
+        
+        headers = analyze_headers(req.target)
+        risk_score = calculate_risk_score(formatted_results)
+        
+        # Save scan record
+        scan_record = ScanRecord(
+            user_id=user.id if user else None,
+            name=req.name,
+            email=req.email,
+            target_url=req.target,
+            scan_mode=req.scan_mode,
+            scan_results={"findings": formatted_results, "headers": headers, "risk_score": risk_score}
+        )
+        db.add(scan_record)
+        db.commit()
+        
+        return {"scan_id": scan_id, "findings": formatted_results, "headers": headers, "tech_stack": [], "risk_score": risk_score}
+    except Exception as e:
+        print(f"Scan error: {e}")
+        raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
 
 
 @app.get("/scans")
