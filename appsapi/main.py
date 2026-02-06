@@ -17,12 +17,19 @@ from auth import (
 
 app = FastAPI(title="ReconScience API", description="Advanced Security Reconnaissance Platform")
 
-# CORS middleware
+# CORS middleware - allow frontend domains
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://reconscience-warns.up.railway.app",
+        "https://reconscience.up.railway.app",
+        "http://localhost:3000",
+        "http://localhost:33490",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:33490",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
