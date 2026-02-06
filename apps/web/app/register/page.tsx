@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 export default function RegisterPage() {
     const router = useRouter();
     const [name, setName] = useState("");
@@ -32,7 +34,9 @@ export default function RegisterPage() {
         }
 
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/auth/register`, {
+            console.log("Registering to:", `${API_URL}/auth/register`);
+
+            const response = await fetch(`${API_URL}/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name, email, password }),
@@ -51,7 +55,12 @@ export default function RegisterPage() {
 
             router.push("/scan");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Registration failed");
+            console.error("Registration error:", err);
+            if (err instanceof TypeError && err.message === "Failed to fetch") {
+                setError(`Cannot connect to server. API: ${API_URL}`);
+            } else {
+                setError(err instanceof Error ? err.message : "Registration failed");
+            }
         } finally {
             setLoading(false);
         }
