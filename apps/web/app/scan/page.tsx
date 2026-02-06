@@ -140,9 +140,22 @@ export default function ScanPage() {
     const logInterval = simulateTerminalLogs(scanMode);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/scan`, {
+      // Get auth token from localStorage
+      const token = localStorage.getItem("access_token");
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // Add auth header if token exists
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_URL}/scan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           name: userName.trim(),
           email: userEmail.trim(),
@@ -152,7 +165,10 @@ export default function ScanPage() {
         }),
       });
 
-      if (!response.ok) throw new Error(`Scan failed with status ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Scan failed with status ${response.status}`);
+      }
 
       const data = await response.json();
       clearInterval(logInterval);
@@ -167,7 +183,13 @@ export default function ScanPage() {
       setActiveTab("overview");
     } catch (err) {
       clearInterval(logInterval);
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      console.error("Scan error:", err);
+      if (err instanceof TypeError && err.message === "Failed to fetch") {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+        setError(`Cannot connect to server. API: ${API_URL}`);
+      } else {
+        setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      }
       setStatus("error");
     }
   };
