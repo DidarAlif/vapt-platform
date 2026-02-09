@@ -239,8 +239,14 @@ async def require_verified_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
-    """Require user to be authenticated AND have verified email."""
+    """Require user to be authenticated AND have verified email (unless skipped)."""
+    from email_service import should_skip_verification
+    
     user = await require_user(credentials, db)
+    
+    # Skip verification check if SKIP_EMAIL_VERIFICATION is enabled
+    if should_skip_verification():
+        return user
     
     if not user.is_verified:
         raise HTTPException(
