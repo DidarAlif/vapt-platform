@@ -1,10 +1,12 @@
 """
 Email verification service for ReconScience.
 Uses SMTP with TLS for secure email delivery.
+Non-blocking with timeout handling.
 """
 import os
 import secrets
 import smtplib
+import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -23,6 +25,9 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # Token settings
 VERIFICATION_TOKEN_EXPIRE_HOURS = 24
+
+# SMTP timeout in seconds
+SMTP_TIMEOUT = 10
 
 
 def generate_verification_token() -> str:
@@ -43,19 +48,60 @@ def is_token_expired(sent_at: Optional[datetime]) -> bool:
     return datetime.utcnow() > expiry
 
 
+def _send_email_sync(to_email: str, subject: str, html_content: str, text_content: str):
+    """Internal function to send email synchronously with timeout."""
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+        msg["To"] = to_email
+        
+        msg.attach(MIMEText(text_content, "plain"))
+        msg.attach(MIMEText(html_content, "html"))
+        
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
+        
+        print(f"[Email] Successfully sent to {to_email}")
+        return True
+        
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"[Email] SMTP authentication failed: {e}")
+        return False
+    except smtplib.SMTPException as e:
+        print(f"[Email] SMTP error: {e}")
+        return False
+    except Exception as e:
+        print(f"[Email] Failed to send: {e}")
+        return False
+
+
+def _send_email_async(to_email: str, subject: str, html_content: str, text_content: str):
+    """Send email in a background thread to avoid blocking."""
+    thread = threading.Thread(
+        target=_send_email_sync,
+        args=(to_email, subject, html_content, text_content),
+        daemon=True
+    )
+    thread.start()
+
+
 def send_verification_email(to_email: str, to_name: str, token: str) -> bool:
     """
     Send email verification link to user.
-    Returns True if email was sent successfully.
+    Sends asynchronously to avoid blocking the request.
+    Returns True immediately (fire and forget).
     """
     if not SMTP_USER or not SMTP_PASSWORD:
         print("[Email] SMTP credentials not configured, skipping email send")
         print(f"[Email] Verification token for {to_email}: {token}")
+        print(f"[Email] Verify URL: {FRONTEND_URL}/verify-email?token={token}")
         return False
     
     verification_url = f"{FRONTEND_URL}/verify-email?token={token}"
     
-    # Create HTML email
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -68,7 +114,6 @@ def send_verification_email(to_email: str, to_name: str, token: str) -> bool:
             h1 {{ font-size: 20px; color: #ffffff; margin-bottom: 16px; }}
             p {{ color: #a0a0a0; line-height: 1.6; margin-bottom: 16px; }}
             .btn {{ display: inline-block; background: #00d4aa; color: #0a0a0f; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-weight: 600; }}
-            .btn:hover {{ background: #00b894; }}
             .footer {{ margin-top: 32px; padding-top: 24px; border-top: 1px solid #1e1e2e; font-size: 12px; color: #666; }}
             .code {{ background: #0a0a0f; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; word-break: break-all; }}
         </style>
@@ -108,30 +153,14 @@ def send_verification_email(to_email: str, to_name: str, token: str) -> bool:
     If you didn't create an account, you can safely ignore this email.
     """
     
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Verify your ReconScience account"
-        msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
-        msg["To"] = to_email
-        
-        msg.attach(MIMEText(text_content, "plain"))
-        msg.attach(MIMEText(html_content, "html"))
-        
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()  # Enable TLS
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
-        
-        print(f"[Email] Verification email sent to {to_email}")
-        return True
-        
-    except Exception as e:
-        print(f"[Email] Failed to send verification email: {e}")
-        return False
+    # Send email in background thread
+    _send_email_async(to_email, "Verify your ReconScience account", html_content, text_content)
+    print(f"[Email] Verification email queued for {to_email}")
+    return True
 
 
 def send_password_reset_email(to_email: str, to_name: str, token: str) -> bool:
-    """Send password reset link to user."""
+    """Send password reset link to user (async)."""
     if not SMTP_USER or not SMTP_PASSWORD:
         print("[Email] SMTP credentials not configured")
         return False
@@ -171,21 +200,7 @@ def send_password_reset_email(to_email: str, to_name: str, token: str) -> bool:
     </html>
     """
     
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Reset your ReconScience password"
-        msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
-        msg["To"] = to_email
-        
-        msg.attach(MIMEText(html_content, "html"))
-        
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
-        
-        return True
-        
-    except Exception as e:
-        print(f"[Email] Failed to send password reset email: {e}")
-        return False
+    text_content = f"Reset your password: {reset_url}"
+    
+    _send_email_async(to_email, "Reset your ReconScience password", html_content, text_content)
+    return True
