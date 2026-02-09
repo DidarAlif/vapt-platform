@@ -16,9 +16,11 @@ from typing import Optional
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+# Strip spaces from password (Google App Passwords display with spaces)
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").replace(" ", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "ReconScience")
+
 
 # Frontend URL for verification links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
