@@ -77,7 +77,44 @@ def run_migrations(engine):
             END IF;
         END $$;
         """,
+        # Add is_verified column to users if it doesn't exist
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'is_verified'
+            ) THEN
+                ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;
+            END IF;
+        END $$;
+        """,
+        # Add verification_token column to users if it doesn't exist
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'verification_token'
+            ) THEN
+                ALTER TABLE users ADD COLUMN verification_token VARCHAR(255);
+            END IF;
+        END $$;
+        """,
+        # Add verification_sent_at column to users if it doesn't exist
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'verification_sent_at'
+            ) THEN
+                ALTER TABLE users ADD COLUMN verification_sent_at TIMESTAMP;
+            END IF;
+        END $$;
+        """,
     ]
+
     
     with engine.connect() as conn:
         for migration in migrations:
