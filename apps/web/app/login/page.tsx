@@ -38,12 +38,8 @@ export default function LoginPage() {
             localStorage.setItem("refresh_token", data.refresh_token);
             localStorage.setItem("user", JSON.stringify(data.user));
 
-            // Check if user is verified
-            if (!data.user.is_verified) {
-                router.push("/verify-email?pending=true");
-            } else {
-                router.push("/scan");
-            }
+            // Check if user is verified - removed to let backend handle this
+            router.push("/scan");
         } catch (err) {
             console.error("Login error:", err);
             if (err instanceof TypeError && err.message === "Failed to fetch") {

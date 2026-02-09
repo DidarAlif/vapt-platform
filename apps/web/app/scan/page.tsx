@@ -151,10 +151,7 @@ export default function ScanPage() {
 
     try {
       const parsedUser = JSON.parse(userData);
-      if (!parsedUser.is_verified) {
-        router.push("/verify-email?pending=true");
-        return;
-      }
+      // Removed is_verified check - backend handles verification requirements
       setUser(parsedUser);
     } catch {
       router.push("/login");
