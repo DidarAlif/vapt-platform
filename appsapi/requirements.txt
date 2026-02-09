@@ -8,3 +8,4 @@ requests
 passlib
 bcrypt
 python-jose[cryptography]
+aiofiles

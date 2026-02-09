@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from database import get_db
 from models import User
+from email_service import generate_verification_token, send_verification_email, is_token_expired
 
 # Security configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-key-change-in-production")
@@ -37,6 +38,7 @@ class UserResponse(BaseModel):
     email: str
     name: str
     role: str
+    is_verified: bool
     created_at: datetime
 
     class Config:
@@ -53,6 +55,14 @@ class TokenResponse(BaseModel):
 class TokenData(BaseModel):
     user_id: Optional[str] = None
     email: Optional[str] = None
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 # Password utilities - using bcrypt directly
@@ -105,17 +115,64 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
     return db.query(User).filter(User.email == email).first()
 
 
+def get_user_by_verification_token(db: Session, token: str) -> Optional[User]:
+    return db.query(User).filter(User.verification_token == token).first()
+
+
 def create_user(db: Session, user_data: UserCreate) -> User:
+    """Create a new user with verification token."""
     hashed_password = get_password_hash(user_data.password)
+    verification_token = generate_verification_token()
+    
     db_user = User(
         email=user_data.email,
         password_hash=hashed_password,
-        name=user_data.name
+        name=user_data.name,
+        is_verified=False,
+        verification_token=verification_token,
+        verification_sent_at=datetime.utcnow()
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    
+    # Send verification email
+    send_verification_email(user_data.email, user_data.name, verification_token)
+    
     return db_user
+
+
+def verify_user_email(db: Session, token: str) -> Optional[User]:
+    """Verify user email with token."""
+    user = get_user_by_verification_token(db, token)
+    if not user:
+        return None
+    
+    # Check if token expired
+    if is_token_expired(user.verification_sent_at):
+        return None
+    
+    user.is_verified = True
+    user.verification_token = None
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def resend_verification_email(db: Session, email: str) -> bool:
+    """Resend verification email to unverified user."""
+    user = get_user_by_email(db, email)
+    if not user or user.is_verified:
+        return False
+    
+    # Generate new token
+    new_token = generate_verification_token()
+    user.verification_token = new_token
+    user.verification_sent_at = datetime.utcnow()
+    db.commit()
+    
+    # Send email
+    return send_verification_email(user.email, user.name, new_token)
 
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
@@ -165,6 +222,22 @@ async def require_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
+        )
+    
+    return user
+
+
+async def require_verified_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> User:
+    """Require user to be authenticated AND have verified email."""
+    user = await require_user(credentials, db)
+    
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required. Please check your inbox.",
         )
     
     return user

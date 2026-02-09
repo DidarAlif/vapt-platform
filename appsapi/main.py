@@ -1,18 +1,23 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, List
 import uuid
-from scanner import run_nuclei_scan, run_header_scan, run_network_scan, run_tech_detection
+import json
+import asyncio
+from scanner import run_nuclei_scan, run_header_scan, run_network_scan, run_tech_detection, stream_nuclei_scan
 from normalize import normalize_nuclei
 from database import get_db, init_db
 from models import ScanRecord, User
 from auth import (
     UserCreate, UserLogin, UserResponse, TokenResponse,
+    VerifyEmailRequest, ResendVerificationRequest,
     create_user, authenticate_user, get_user_by_email,
     create_access_token, create_refresh_token, verify_token,
-    get_current_user, require_user
+    get_current_user, require_user, require_verified_user,
+    verify_user_email, resend_verification_email
 )
 
 app = FastAPI(title="ReconScience API", description="Advanced Security Reconnaissance Platform")
@@ -48,13 +53,13 @@ def startup_event():
 # ============== Health Check ==============
 @app.get("/")
 def health_check():
-    return {"status": "healthy", "service": "reconscience-api", "version": "2.0"}
+    return {"status": "healthy", "service": "reconscience-api", "version": "2.1"}
 
 
 # ============== Authentication Routes ==============
 @app.post("/auth/register", response_model=TokenResponse)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user."""
+    """Register a new user. Sends verification email."""
     try:
         existing = get_user_by_email(db, user_data.email)
         if existing:
@@ -73,6 +78,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
                 email=user.email,
                 name=user.name,
                 role=user.role,
+                is_verified=user.is_verified,
                 created_at=user.created_at
             )
         )
@@ -101,6 +107,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             email=user.email,
             name=user.name,
             role=user.role,
+            is_verified=user.is_verified,
             created_at=user.created_at
         )
     )
@@ -114,14 +121,31 @@ def get_me(user: User = Depends(require_user)):
         email=user.email,
         name=user.name,
         role=user.role,
+        is_verified=user.is_verified,
         created_at=user.created_at
     )
 
 
+@app.post("/auth/verify-email")
+def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """Verify user email with token."""
+    user = verify_user_email(db, request.token)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+    
+    return {"message": "Email verified successfully", "verified": True}
+
+
+@app.post("/auth/resend-verification")
+def resend_verification(request: ResendVerificationRequest, db: Session = Depends(get_db)):
+    """Resend verification email."""
+    success = resend_verification_email(db, request.email)
+    # Always return success to prevent email enumeration
+    return {"message": "If the email exists and is unverified, a new verification link has been sent."}
+
+
 # ============== Scan Routes ==============
 class ScanRequest(BaseModel):
-    name: str
-    email: str
     target: str
     scan_mode: str = "quick"
     categories: Optional[List[str]] = None
@@ -135,34 +159,6 @@ def calculate_risk_score(findings: list) -> int:
     return min(100, score)
 
 
-def analyze_headers(target: str) -> list:
-    import requests
-    headers_to_check = [
-        {"name": "Content-Security-Policy", "risk": "high"},
-        {"name": "Strict-Transport-Security", "risk": "high"},
-        {"name": "X-Frame-Options", "risk": "medium"},
-        {"name": "X-Content-Type-Options", "risk": "low"},
-        {"name": "Referrer-Policy", "risk": "medium"},
-    ]
-    
-    results = []
-    try:
-        response = requests.head(target, timeout=10, allow_redirects=True)
-        for h in headers_to_check:
-            value = response.headers.get(h["name"])
-            results.append({
-                "name": h["name"],
-                "present": value is not None,
-                "value": value,
-                "risk": h["risk"],
-                "recommendation": f"{'Configured correctly' if value else 'Add ' + h['name'] + ' header'}"
-            })
-    except:
-        for h in headers_to_check:
-            results.append({"name": h["name"], "present": False, "value": None, "risk": h["risk"], "recommendation": "Could not check"})
-    return results
-
-
 def get_scan_templates(mode: str, categories: Optional[List[str]] = None) -> str:
     mode_templates = {
         "quick": "technologies,exposures,misconfiguration",
@@ -174,7 +170,8 @@ def get_scan_templates(mode: str, categories: Optional[List[str]] = None) -> str
 
 
 @app.post("/scan")
-def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user)):
+def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: User = Depends(require_verified_user)):
+    """Start a security scan. Requires authenticated and verified user."""
     try:
         scan_id = str(uuid.uuid4())
         
@@ -226,11 +223,11 @@ def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[U
         # Calculate risk score
         risk_score = calculate_risk_score(formatted_results)
         
-        # Save scan record
+        # Save scan record - use authenticated user info
         scan_record = ScanRecord(
-            user_id=user.id if user else None,
-            name=req.name,
-            email=req.email,
+            user_id=user.id,
+            name=user.name,
+            email=user.email,
             target_url=req.target,
             scan_mode=req.scan_mode,
             scan_results={
@@ -258,6 +255,52 @@ def start_scan(req: ScanRequest, db: Session = Depends(get_db), user: Optional[U
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
+
+
+@app.get("/scan/stream")
+async def stream_scan(
+    target: str,
+    scan_mode: str = "quick",
+    categories: Optional[str] = None,
+    user: User = Depends(require_verified_user)
+):
+    """
+    Stream scan progress using Server-Sent Events.
+    Returns real-time updates as the scan progresses.
+    """
+    scan_id = str(uuid.uuid4())
+    cat_list = categories.split(",") if categories else None
+    
+    async def event_generator():
+        try:
+            for update in stream_nuclei_scan(target, scan_id, scan_mode, cat_list):
+                yield f"data: {json.dumps(update)}\n\n"
+                await asyncio.sleep(0.1)
+            
+            # Run additional scans
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Analyzing headers...', 'progress': 96})}\n\n"
+            headers = run_header_scan(target)
+            
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Detecting technologies...', 'progress': 98})}\n\n"
+            tech_stack = run_tech_detection(target, scan_id)
+            
+            # Send final results
+            yield f"data: {json.dumps({'type': 'headers', 'data': headers.get('results', [])})}\n\n"
+            yield f"data: {json.dumps({'type': 'tech_stack', 'data': tech_stack})}\n\n"
+            yield f"data: {json.dumps({'type': 'complete', 'scan_id': scan_id, 'progress': 100})}\n\n"
+            
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @app.get("/scans")

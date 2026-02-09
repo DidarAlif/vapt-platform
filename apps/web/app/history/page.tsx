@@ -85,7 +85,7 @@ export default function HistoryPage() {
                         <div className="w-10 h-10 relative">
                             <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
                         </div>
-                        <span className="text-xl font-bold text-gray-100">ReconScience</span>
+                        <span className="text-xl font-bold text-[#00d4aa]">ReconScience</span>
                     </Link>
                     <div className="flex items-center gap-4">
                         <Link href="/scan" className="text-gray-400 hover:text-gray-200 text-sm">New Scan</Link>
@@ -95,44 +95,48 @@ export default function HistoryPage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-6 py-8">
-                <h1 className="text-2xl font-bold mb-6">Scan History</h1>
+                <h1 className="text-xl font-bold mb-6">Scan History</h1>
 
                 {loading ? (
-                    <div className="text-center py-12 text-gray-500">Loading...</div>
+                    <div className="text-center py-12 text-gray-500 font-mono text-sm">Loading...</div>
                 ) : error ? (
-                    <div className="text-center py-12 text-red-400">{error}</div>
+                    <div className="text-center py-12 text-red-400 text-sm">{error}</div>
                 ) : scans.length === 0 ? (
                     <div className="text-center py-12">
-                        <div className="text-5xl mb-4">📋</div>
-                        <p className="text-gray-400">No scans yet</p>
-                        <Link href="/scan" className="inline-block mt-4 px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm">
+                        <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                        </div>
+                        <p className="text-gray-400 text-sm">No scans yet</p>
+                        <Link href="/scan" className="inline-block mt-4 px-6 py-2 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] rounded-lg text-sm font-medium">
                             Start First Scan
                         </Link>
                     </div>
                 ) : (
-                    <div className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden">
+                    <div className="bg-[#12121a] border border-gray-800/50 rounded-lg overflow-hidden">
                         <table className="w-full">
                             <thead>
-                                <tr className="bg-[#0a0a0f]/50">
-                                    <th className="px-6 py-3 text-left text-xs text-gray-400 uppercase">Target</th>
-                                    <th className="px-6 py-3 text-left text-xs text-gray-400 uppercase">Mode</th>
-                                    <th className="px-6 py-3 text-left text-xs text-gray-400 uppercase">Risk</th>
-                                    <th className="px-6 py-3 text-left text-xs text-gray-400 uppercase">Date</th>
-                                    <th className="px-6 py-3 text-left text-xs text-gray-400 uppercase">Actions</th>
+                                <tr className="bg-[#0a0a0f]">
+                                    <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase">Target</th>
+                                    <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase">Mode</th>
+                                    <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase">Risk</th>
+                                    <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase">Date</th>
+                                    <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-800/50">
+                            <tbody className="divide-y divide-gray-800">
                                 {scans.map((scan) => (
                                     <tr key={scan.id} className="hover:bg-white/[0.02]">
-                                        <td className="px-6 py-4 font-mono text-sm text-cyan-400">{scan.target_url}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-300 capitalize">{scan.scan_mode}</td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3 font-mono text-sm text-[#00d4aa]">{scan.target_url}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-300 capitalize">{scan.scan_mode}</td>
+                                        <td className="px-4 py-3">
                                             <span className={`font-bold ${getRiskColor(scan.risk_score)}`}>{scan.risk_score}</span>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">
+                                        <td className="px-4 py-3 text-sm text-gray-500">
                                             {new Date(scan.created_at).toLocaleDateString()}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3">
                                             <button
                                                 onClick={() => deleteScan(scan.id)}
                                                 className="text-red-400 hover:text-red-300 text-sm"

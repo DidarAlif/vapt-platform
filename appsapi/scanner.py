@@ -1,14 +1,15 @@
 """
 ReconScience Security Scanner - Full Nuclei Power
-Comprehensive scanning leveraging Nuclei's 9000+ templates.
+Comprehensive scanning leveraging Nuclei's 9000+ templates with real-time streaming.
 """
 import subprocess
 import json
 import os
 import re
 import requests
+import asyncio
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Generator, AsyncGenerator
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -28,69 +29,72 @@ print(f"[Scanner Init] Nuclei available: {NUCLEI_AVAILABLE}")
 
 
 # ============== NUCLEI SCAN PROFILES ==============
-# Comprehensive profiles using Nuclei's full template library
+# Each mode has DISTINCT templates for different purposes
 
 NUCLEI_PROFILES = {
     "quick": {
-        "tags": "technologies,tech,fingerprint,detection,exposed,exposure,login,panel,cms-detect",
-        "exclude_tags": "dos,fuzz,intrusive,brute-force",
-        "severity": "info,low,medium,high,critical",
+        # Quick: Technology fingerprinting and basic exposures ONLY
+        "tags": "tech,favicon,waf-detect,fingerprint",
+        "exclude_tags": "cve,vulnerability,dos,fuzz,intrusive,brute-force,sqli,xss,rce,lfi,ssrf",
+        "severity": "info,low",
         "rate_limit": 150,
         "concurrency": 25,
-        "timeout": 10,
-        "retries": 2,
-        "max_time": 120,  # 2 minutes
-        "description": "Quick reconnaissance - technology detection and basic exposures"
+        "timeout": 8,
+        "retries": 1,
+        "max_time": 90,  # 1.5 minutes
+        "description": "Quick technology fingerprinting and detection"
     },
     "full": {
-        "tags": "cve,cves,vulnerabilities,vulnerability,exposed,exposure,misconfiguration,misconfig,default-login,takeover,xss,sqli,ssrf,lfi,rfi,rce,idor,redirect,injection,auth-bypass,disclosure,token,api,config,backup,panel,login,wp-plugin,joomla,drupal,magento,creds,secrets,credential",
+        # Full: Comprehensive vulnerability scanning with all CVEs
+        "tags": "cve,cve2024,cve2023,cve2022,cve2021,vulnerability,rce,sqli,xss,ssrf,lfi,rfi,auth-bypass,exposure,misconfig,default-login,takeover,injection",
         "exclude_tags": "dos,fuzz,intrusive,brute-force",
-        "severity": "info,low,medium,high,critical",
-        "rate_limit": 100,
-        "concurrency": 50,
+        "severity": "low,medium,high,critical",
+        "rate_limit": 80,
+        "concurrency": 40,
         "timeout": 15,
-        "retries": 3,
+        "retries": 2,
         "max_time": 600,  # 10 minutes
-        "description": "Comprehensive vulnerability scan - CVEs, misconfigs, exposures"
+        "description": "Comprehensive CVE and vulnerability scanning"
     },
     "network": {
-        "tags": "network,ssl,tls,certificate,dns,port,service,subdomain,cloud,aws,azure,gcp,cdn,firewall",
-        "exclude_tags": "dos",
+        # Network: SSL, DNS, ports, cloud services
+        "tags": "ssl,tls,dns,network,cloud,aws,azure,gcp,cdn,certificate,expired-ssl,weak-cipher,subdomain",
+        "exclude_tags": "cve,vulnerability,dos,fuzz,web,http",
         "severity": "info,low,medium,high,critical",
         "rate_limit": 50,
-        "concurrency": 20,
+        "concurrency": 15,
         "timeout": 20,
         "retries": 2,
         "max_time": 300,  # 5 minutes
-        "description": "Network reconnaissance - SSL, DNS, cloud services"
+        "description": "Network, SSL/TLS, and cloud infrastructure analysis"
     },
     "custom": {
+        # Custom: User-selected categories
         "severity": "info,low,medium,high,critical",
         "rate_limit": 100,
-        "concurrency": 35,
-        "timeout": 15,
+        "concurrency": 30,
+        "timeout": 12,
         "retries": 2,
-        "max_time": 480,
+        "max_time": 480,  # 8 minutes
         "description": "Custom scan with selected categories"
     }
 }
 
-# Category to Nuclei tags mapping
+# Category to Nuclei tags mapping - DISTINCT categories
 CATEGORY_TAGS = {
-    "cves": "cve,cves,vulnerability,vulnerabilities,cve2024,cve2023,cve2022,cve2021,cve2020",
-    "misconfig": "misconfiguration,misconfig,security-misconfiguration,default-login,exposed-panel,weak-config",
-    "exposures": "exposure,exposed,backup,config,debug,disclosure,sensitive,credentials,secrets,.git,.env,.svn,.ds_store",
+    "cves": "cve,cve2024,cve2023,cve2022,cve2021,cve2020,vulnerability",
+    "misconfig": "misconfiguration,misconfig,default-login,exposed-panel,weak-config,security-misconfiguration",
+    "exposures": "exposure,exposed,backup,config,debug,disclosure,sensitive,.git,.env,.svn,credentials,secrets",
     "takeovers": "takeover,subdomain-takeover,cname-takeover,dns-takeover",
-    "ssl": "ssl,tls,certificate,weak-cipher,expired-ssl,ssl-drown,heartbleed",
+    "ssl": "ssl,tls,certificate,weak-cipher,expired-ssl,heartbleed",
     "xss": "xss,cross-site-scripting,reflected-xss,stored-xss,dom-xss",
-    "sqli": "sqli,sql-injection,mysql,mssql,oracle,postgresql,sqlite",
-    "lfi": "lfi,rfi,path-traversal,local-file-inclusion,remote-file-inclusion,file-inclusion",
-    "rce": "rce,remote-code-execution,command-injection,code-execution,shell-upload",
-    "ssrf": "ssrf,server-side-request-forgery,url-injection,redirect",
-    "auth": "auth,authentication,login,default-login,weak-password,bypass,auth-bypass,session",
-    "panels": "panel,admin,dashboard,cms,login-panel,admin-panel,webmail,cpanel",
-    "tech": "technologies,tech,fingerprint,detect,version,cms-detect,framework",
-    "osint": "osint,whois,dns-info,cloud,aws,azure,gcp,google-cloud",
+    "sqli": "sqli,sql-injection,mysql,mssql,oracle,postgresql",
+    "lfi": "lfi,rfi,path-traversal,local-file-inclusion,remote-file-inclusion",
+    "rce": "rce,remote-code-execution,command-injection,code-execution",
+    "ssrf": "ssrf,server-side-request-forgery,url-injection",
+    "auth": "auth,authentication,login,default-login,bypass,auth-bypass",
+    "panels": "panel,admin,dashboard,login-panel,admin-panel",
+    "tech": "tech,technologies,fingerprint,detect,version,framework",
 }
 
 
@@ -105,6 +109,165 @@ def get_nuclei_tags(mode: str, categories: Optional[List[str]] = None) -> str:
     return NUCLEI_PROFILES.get(mode, NUCLEI_PROFILES["quick"]).get("tags", "")
 
 
+# ============== STREAMING NUCLEI SCAN ==============
+
+def stream_nuclei_scan(
+    target_url: str, 
+    scan_id: str, 
+    scan_mode: str = "quick",
+    categories: Optional[List[str]] = None
+) -> Generator[Dict, None, None]:
+    """
+    Generator that streams Nuclei scan progress and findings in real-time.
+    Yields status updates and findings as they come in.
+    """
+    print(f"[Scanner] Starting streaming {scan_mode} scan on {target_url}")
+    
+    if not NUCLEI_AVAILABLE:
+        # Fallback to Python-based scanning
+        yield {"type": "status", "message": "Nuclei not available, using Python-based scanning", "progress": 10}
+        for finding in run_python_security_checks(target_url):
+            yield {"type": "finding", "data": finding}
+        yield {"type": "status", "message": "Python-based scan complete", "progress": 100}
+        return
+    
+    out_dir = Path("work") / scan_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    output_file = out_dir / "nuclei_results.jsonl"
+    
+    profile = NUCLEI_PROFILES.get(scan_mode, NUCLEI_PROFILES["quick"])
+    tags = get_nuclei_tags(scan_mode, categories)
+    
+    yield {"type": "status", "message": f"Initializing {scan_mode} scan...", "progress": 5}
+    yield {"type": "status", "message": f"Loading templates: {tags[:60]}...", "progress": 10}
+    
+    # Build Nuclei command
+    cmd = [
+        "nuclei",
+        "-target", target_url,
+        "-jsonl",
+        "-output", str(output_file),
+        "-severity", profile["severity"],
+        "-rate-limit", str(profile["rate_limit"]),
+        "-concurrency", str(profile["concurrency"]), 
+        "-timeout", str(profile["timeout"]),
+        "-retries", str(profile["retries"]),
+        "-stats",
+        "-stats-interval", "5",
+        "-no-color",
+        "-no-interactsh",
+    ]
+    
+    if tags:
+        cmd.extend(["-tags", tags])
+    
+    if "exclude_tags" in profile and profile["exclude_tags"]:
+        cmd.extend(["-exclude-tags", profile["exclude_tags"]])
+    
+    templates_path = os.getenv("NUCLEI_TEMPLATES_PATH", "/root/nuclei-templates")
+    if os.path.exists(templates_path):
+        cmd.extend(["-templates", templates_path])
+    
+    yield {"type": "status", "message": "Starting Nuclei scanner...", "progress": 15}
+    
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+        
+        findings_count = 0
+        current_progress = 15
+        max_time = profile["max_time"]
+        
+        # Read stderr for stats (Nuclei outputs stats to stderr)
+        import select
+        import time
+        start_time = time.time()
+        
+        while process.poll() is None:
+            elapsed = time.time() - start_time
+            
+            # Calculate progress based on elapsed time
+            time_progress = min(85, 15 + (elapsed / max_time) * 70)
+            
+            # Check if there are new findings in the output file
+            if output_file.exists():
+                try:
+                    content = output_file.read_text(encoding="utf-8", errors="ignore")
+                    lines = [l for l in content.splitlines() if l.strip()]
+                    
+                    # Yield any new findings
+                    while findings_count < len(lines):
+                        try:
+                            finding_raw = json.loads(lines[findings_count])
+                            finding = format_nuclei_finding(finding_raw, target_url)
+                            yield {"type": "finding", "data": finding}
+                            findings_count += 1
+                        except json.JSONDecodeError:
+                            findings_count += 1
+                except:
+                    pass
+            
+            # Yield progress update
+            if int(time_progress) > int(current_progress):
+                current_progress = time_progress
+                yield {
+                    "type": "status", 
+                    "message": f"Scanning... ({findings_count} findings so far)",
+                    "progress": int(current_progress)
+                }
+            
+            time.sleep(1)
+            
+            # Check timeout
+            if elapsed > max_time:
+                process.terminate()
+                yield {"type": "status", "message": f"Scan timed out after {max_time}s", "progress": 90}
+                break
+        
+        # Get any remaining findings
+        if output_file.exists():
+            content = output_file.read_text(encoding="utf-8", errors="ignore")
+            lines = [l for l in content.splitlines() if l.strip()]
+            while findings_count < len(lines):
+                try:
+                    finding_raw = json.loads(lines[findings_count])
+                    finding = format_nuclei_finding(finding_raw, target_url)
+                    yield {"type": "finding", "data": finding}
+                    findings_count += 1
+                except:
+                    findings_count += 1
+        
+        yield {"type": "status", "message": f"Nuclei scan complete. {findings_count} findings.", "progress": 95}
+        
+    except FileNotFoundError:
+        yield {"type": "status", "message": "Nuclei binary not found!", "progress": 100}
+    except Exception as e:
+        yield {"type": "status", "message": f"Scan error: {str(e)}", "progress": 100}
+
+
+def format_nuclei_finding(raw: Dict, target_url: str) -> Dict:
+    """Format a raw Nuclei finding to our standard structure."""
+    info = raw.get("info", {})
+    tags = info.get("tags", [])
+    
+    return {
+        "template_id": raw.get("template-id", raw.get("templateID", "unknown")),
+        "name": info.get("name", raw.get("template-id", "Unknown")),
+        "severity": info.get("severity", "info"),
+        "matched_at": raw.get("matched-at", raw.get("host", target_url)),
+        "description": info.get("description", "Security finding detected by Nuclei"),
+        "category": tags[0] if tags else "nuclei",
+        "reference": info.get("reference", [])[:3] if info.get("reference") else [],
+        "matcher_name": raw.get("matcher-name", ""),
+        "extracted_results": raw.get("extracted-results", [])[:5] if raw.get("extracted-results") else [],
+    }
+
+
 # ============== MAIN NUCLEI SCAN FUNCTION ==============
 
 def run_nuclei_scan(
@@ -116,6 +279,7 @@ def run_nuclei_scan(
 ) -> List[Dict]:
     """
     Run comprehensive Nuclei scan with full template library.
+    Returns all findings at once (non-streaming version).
     """
     print(f"[Scanner] Starting {scan_mode} scan on {target_url}")
     print(f"[Scanner] Nuclei available: {NUCLEI_AVAILABLE}")
@@ -123,11 +287,9 @@ def run_nuclei_scan(
     findings = []
     
     if NUCLEI_AVAILABLE:
-        # Run full Nuclei scan
         nuclei_findings = run_nuclei_scan_full(target_url, scan_id, scan_mode, categories)
         findings.extend(nuclei_findings)
     else:
-        # Fallback to Python-based scanning
         print("[Scanner] Nuclei not available, using Python-based scanning")
         python_findings = run_python_security_checks(target_url)
         findings.extend(python_findings)
@@ -152,6 +314,7 @@ def run_nuclei_scan_full(
     
     print(f"[Nuclei] Mode: {scan_mode}")
     print(f"[Nuclei] Tags: {tags[:100]}...")
+    print(f"[Nuclei] Severity: {profile['severity']}")
     print(f"[Nuclei] Max time: {profile['max_time']}s")
     
     # Build comprehensive Nuclei command
@@ -169,7 +332,7 @@ def run_nuclei_scan_full(
         "-stats-interval", "10",
         "-no-color",
         "-silent",
-        "-no-interactsh",  # Disable OOB testing for faster scans
+        "-no-interactsh",
     ]
     
     # Add tags
@@ -221,19 +384,8 @@ def run_nuclei_scan_full(
             if not line:
                 continue
             try:
-                finding = json.loads(line)
-                # Format to our standard structure
-                findings.append({
-                    "template_id": finding.get("template-id", finding.get("templateID", "unknown")),
-                    "name": finding.get("info", {}).get("name", finding.get("template-id", "Unknown")),
-                    "severity": finding.get("info", {}).get("severity", "info"),
-                    "matched_at": finding.get("matched-at", finding.get("host", target_url)),
-                    "description": finding.get("info", {}).get("description", "Security finding detected by Nuclei"),
-                    "category": finding.get("info", {}).get("tags", ["unknown"])[0] if finding.get("info", {}).get("tags") else "nuclei",
-                    "reference": finding.get("info", {}).get("reference", [])[:3] if finding.get("info", {}).get("reference") else [],
-                    "matcher_name": finding.get("matcher-name", ""),
-                    "extracted_results": finding.get("extracted-results", [])[:5] if finding.get("extracted-results") else [],
-                })
+                finding_raw = json.loads(line)
+                findings.append(format_nuclei_finding(finding_raw, target_url))
             except json.JSONDecodeError:
                 pass
     
@@ -264,6 +416,12 @@ SECURITY_CHECKS = [
     {"id": "exposed-sql", "name": "SQL Dump Exposed", "path": "/database.sql", "severity": "critical",
      "check": lambda r: "CREATE TABLE" in r.text or "INSERT INTO" in r.text,
      "description": "Database dump file exposed"},
+    {"id": "exposed-ds-store", "name": ".DS_Store Exposed", "path": "/.DS_Store", "severity": "low",
+     "check": lambda r: r.status_code == 200 and b'\x00\x00\x00\x01Bud1' in r.content[:12],
+     "description": "macOS .DS_Store file exposed, reveals directory structure"},
+    {"id": "exposed-svn", "name": ".svn Exposed", "path": "/.svn/entries", "severity": "high",
+     "check": lambda r: r.status_code == 200 and ("dir" in r.text.lower() or "svn" in r.text.lower()),
+     "description": "SVN repository metadata exposed"},
 ]
 
 
@@ -364,6 +522,8 @@ TECH_SIGNATURES = {
     "Nginx": {"headers": {"Server": "nginx"}, "type": "Web Server"},
     "Apache": {"headers": {"Server": "Apache"}, "type": "Web Server"},
     "Cloudflare": {"headers": {"Server": "cloudflare"}, "type": "CDN"},
+    "LiteSpeed": {"headers": {"Server": "LiteSpeed"}, "type": "Web Server"},
+    "IIS": {"headers": {"Server": "Microsoft-IIS"}, "type": "Web Server"},
 }
 
 

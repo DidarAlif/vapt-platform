@@ -7,7 +7,7 @@ from database import Base
 
 
 class User(Base):
-    """User model for authentication."""
+    """User model for authentication with email verification."""
     __tablename__ = "users"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -16,6 +16,12 @@ class User(Base):
     name = Column(String(255), nullable=False)
     role = Column(String(50), default="user")  # user, admin
     is_active = Column(Boolean, default=True)
+    
+    # Email verification fields
+    is_verified = Column(Boolean, default=False)
+    verification_token = Column(String(255), nullable=True)
+    verification_sent_at = Column(DateTime, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationship to scans
@@ -30,7 +36,7 @@ class ScanRecord(Base):
     __tablename__ = "scan_records"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)  # Now required
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False)
     target_url = Column(String(2048), nullable=False)

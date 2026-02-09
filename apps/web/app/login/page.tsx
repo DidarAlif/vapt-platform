@@ -38,7 +38,12 @@ export default function LoginPage() {
             localStorage.setItem("refresh_token", data.refresh_token);
             localStorage.setItem("user", JSON.stringify(data.user));
 
-            router.push("/scan");
+            // Check if user is verified
+            if (!data.user.is_verified) {
+                router.push("/verify-email?pending=true");
+            } else {
+                router.push("/scan");
+            }
         } catch (err) {
             console.error("Login error:", err);
             if (err instanceof TypeError && err.message === "Failed to fetch") {
@@ -56,15 +61,15 @@ export default function LoginPage() {
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="w-20 h-20 mx-auto relative mb-4">
+                    <div className="w-16 h-16 mx-auto relative mb-4">
                         <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-100">Welcome Back</h1>
-                    <p className="text-gray-500 text-sm mt-1">Sign in to your ReconScience account</p>
+                    <h1 className="text-xl font-bold text-gray-100">Welcome Back</h1>
+                    <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
                 </div>
 
                 {/* Login Form */}
-                <form onSubmit={handleSubmit} className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6 shadow-2xl">
+                <form onSubmit={handleSubmit} className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
                     {error && (
                         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
                             {error}
@@ -78,7 +83,7 @@ export default function LoginPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            className="w-full bg-[#0a0a0f] border border-gray-700/50 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                            className="w-full bg-[#0a0a0f] border border-gray-800 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all"
                             placeholder="your@email.com"
                         />
                     </div>
@@ -91,7 +96,7 @@ export default function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
-                                className="w-full bg-[#0a0a0f] border border-gray-700/50 rounded-lg px-4 py-3 pr-12 text-gray-100 placeholder-gray-600 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                                className="w-full bg-[#0a0a0f] border border-gray-800 rounded-lg px-4 py-3 pr-12 text-gray-100 placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all"
                                 placeholder="••••••••"
                             />
                             <button
@@ -116,14 +121,14 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-semibold rounded-lg transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/30"
+                        className="w-full py-3 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all disabled:opacity-50"
                     >
                         {loading ? "Signing in..." : "Sign In"}
                     </button>
 
                     <p className="mt-4 text-center text-gray-500 text-sm">
                         Don't have an account?{" "}
-                        <Link href="/register" className="text-cyan-400 hover:text-cyan-300">
+                        <Link href="/register" className="text-[#00d4aa] hover:text-[#00b894]">
                             Create one
                         </Link>
                     </p>
