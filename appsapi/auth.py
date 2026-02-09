@@ -121,23 +121,31 @@ def get_user_by_verification_token(db: Session, token: str) -> Optional[User]:
 
 def create_user(db: Session, user_data: UserCreate) -> User:
     """Create a new user with verification token."""
+    from email_service import should_skip_verification
+    
     hashed_password = get_password_hash(user_data.password)
     verification_token = generate_verification_token()
+    
+    # Auto-verify if email verification is skipped
+    skip_verification = should_skip_verification()
     
     db_user = User(
         email=user_data.email,
         password_hash=hashed_password,
         name=user_data.name,
-        is_verified=False,
-        verification_token=verification_token,
-        verification_sent_at=datetime.utcnow()
+        is_verified=skip_verification,  # Auto-verify if skipping
+        verification_token=verification_token if not skip_verification else None,
+        verification_sent_at=datetime.utcnow() if not skip_verification else None
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     
-    # Send verification email
-    send_verification_email(user_data.email, user_data.name, verification_token)
+    # Send verification email only if not skipping
+    if not skip_verification:
+        send_verification_email(user_data.email, user_data.name, verification_token)
+    else:
+        print(f"[Auth] Email verification skipped - user {user_data.email} auto-verified")
     
     return db_user
 

@@ -21,6 +21,8 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").replace(" ", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "ReconScience")
 
+# Skip email verification (set to "true" to auto-verify users)
+SKIP_EMAIL_VERIFICATION = os.getenv("SKIP_EMAIL_VERIFICATION", "false").lower() == "true"
 
 # Frontend URL for verification links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -29,7 +31,10 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 VERIFICATION_TOKEN_EXPIRE_HOURS = 24
 
 # SMTP timeout in seconds
-SMTP_TIMEOUT = 10
+SMTP_TIMEOUT = 15
+
+# Debug mode
+DEBUG_SMTP = os.getenv("DEBUG_SMTP", "true").lower() == "true"
 
 
 def generate_verification_token() -> str:
@@ -50,8 +55,21 @@ def is_token_expired(sent_at: Optional[datetime]) -> bool:
     return datetime.utcnow() > expiry
 
 
+def should_skip_verification() -> bool:
+    """Check if email verification should be skipped."""
+    return SKIP_EMAIL_VERIFICATION
+
+
 def _send_email_sync(to_email: str, subject: str, html_content: str, text_content: str):
     """Internal function to send email synchronously with timeout."""
+    if DEBUG_SMTP:
+        print(f"[Email Debug] Attempting to send email to {to_email}")
+        print(f"[Email Debug] SMTP_HOST: {SMTP_HOST}")
+        print(f"[Email Debug] SMTP_PORT: {SMTP_PORT}")
+        print(f"[Email Debug] SMTP_USER: {SMTP_USER}")
+        print(f"[Email Debug] SMTP_PASSWORD length: {len(SMTP_PASSWORD)} chars")
+        print(f"[Email Debug] FROM: {SMTP_FROM_EMAIL}")
+    
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
@@ -61,23 +79,43 @@ def _send_email_sync(to_email: str, subject: str, html_content: str, text_conten
         msg.attach(MIMEText(text_content, "plain"))
         msg.attach(MIMEText(html_content, "html"))
         
+        if DEBUG_SMTP:
+            print(f"[Email Debug] Connecting to {SMTP_HOST}:{SMTP_PORT}...")
+        
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
+            if DEBUG_SMTP:
+                print(f"[Email Debug] Connected. Starting TLS...")
             server.starttls()
+            if DEBUG_SMTP:
+                print(f"[Email Debug] TLS started. Logging in...")
             server.login(SMTP_USER, SMTP_PASSWORD)
+            if DEBUG_SMTP:
+                print(f"[Email Debug] Logged in. Sending email...")
             server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
         
         print(f"[Email] Successfully sent to {to_email}")
         return True
         
     except smtplib.SMTPAuthenticationError as e:
-        print(f"[Email] SMTP authentication failed: {e}")
+        print(f"[Email ERROR] SMTP authentication failed: {e}")
+        print(f"[Email ERROR] Check your SMTP_USER and SMTP_PASSWORD")
+        return False
+    except smtplib.SMTPConnectError as e:
+        print(f"[Email ERROR] Could not connect to SMTP server: {e}")
         return False
     except smtplib.SMTPException as e:
-        print(f"[Email] SMTP error: {e}")
+        print(f"[Email ERROR] SMTP error: {e}")
+        return False
+    except ConnectionRefusedError as e:
+        print(f"[Email ERROR] Connection refused: {e}")
+        return False
+    except TimeoutError as e:
+        print(f"[Email ERROR] Connection timed out: {e}")
         return False
     except Exception as e:
-        print(f"[Email] Failed to send: {e}")
+        print(f"[Email ERROR] Failed to send: {type(e).__name__}: {e}")
         return False
+
 
 
 def _send_email_async(to_email: str, subject: str, html_content: str, text_content: str):
