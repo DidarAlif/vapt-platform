@@ -22,7 +22,9 @@ SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "ReconScience")
 
 # Skip email verification (set to "true" to auto-verify users)
-SKIP_EMAIL_VERIFICATION = os.getenv("SKIP_EMAIL_VERIFICATION", "false").lower() == "true"
+_skip_val = os.getenv("SKIP_EMAIL_VERIFICATION", "false").lower().strip().strip('"').strip("'")
+SKIP_EMAIL_VERIFICATION = _skip_val in ("true", "1", "yes", "on")
+
 
 # Frontend URL for verification links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
