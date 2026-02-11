@@ -60,8 +60,8 @@ export default function RegisterPage() {
             localStorage.setItem("refresh_token", data.refresh_token);
             localStorage.setItem("user", JSON.stringify(data.user));
 
-            // Redirect to verification pending page
-            router.push("/verify-email?pending=true");
+            // Registration successful - redirect to scan page (verification bypassed)
+            router.push("/scan");
         } catch (err) {
             console.error("Registration error:", err);
             if (err instanceof TypeError && err.message === "Failed to fetch") {
