@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: reconscience-api
+    runtime: docker
+    dockerfilePath: ./appsapi/Dockerfile
+    dockerContext: ./appsapi
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: "ReconScience <onboarding@resend.dev>"
+      - key: FRONTEND_URL
+        sync: false
+      - key: PORT
+        value: "8000"
+    healthCheckPath: /
