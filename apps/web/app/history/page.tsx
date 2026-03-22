@@ -30,7 +30,8 @@ export default function HistoryPage() {
 
     const fetchScans = async (token: string) => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/scans`, {
+            const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+            const response = await fetch(`${baseUrl}/scans`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
@@ -54,7 +55,8 @@ export default function HistoryPage() {
         if (!token) return;
 
         try {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/scans/${scanId}`, {
+            const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+            await fetch(`${baseUrl}/scans/${scanId}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });

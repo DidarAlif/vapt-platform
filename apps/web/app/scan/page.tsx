@@ -39,7 +39,7 @@ type ScanStatus = "idle" | "scanning" | "complete" | "error";
 type ScanMode = "quick" | "full" | "network" | "custom";
 type ResultTab = "overview" | "vulnerabilities" | "headers" | "tech";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 const SCAN_MODES = [
   { id: "quick" as ScanMode, name: "Quick Recon", desc: "Tech fingerprinting & detection", time: "~2 min" },
