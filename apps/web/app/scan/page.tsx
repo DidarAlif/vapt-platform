@@ -136,8 +136,16 @@ export default function ScanPage() {
   const [techStack, setTechStack] = useState<TechStack[]>([]);
   const [activeTab, setActiveTab] = useState<ResultTab>("overview");
   const [riskScore, setRiskScore] = useState(0);
+  const [scanId, setScanId] = useState<string | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const terminalEndRef = useRef<HTMLDivElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Auto-scroll terminal
+  useEffect(() => {
+    terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [terminalLog, progress]);
 
   // Check authentication on mount
   useEffect(() => {
@@ -193,12 +201,15 @@ export default function ScanPage() {
     const categories = scanMode === "custom" ? selectedCategories.join(",") : "";
     const sseUrl = `${API_URL}/scan/stream?target=${encodeURIComponent(target)}&scan_mode=${scanMode}&categories=${categories}`;
 
+    abortControllerRef.current = new AbortController();
+
     try {
       // For SSE, we need to make a fetch request with auth header
       const response = await fetch(sseUrl, {
         headers: {
           "Authorization": `Bearer ${token}`,
         },
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -247,6 +258,7 @@ export default function ScanPage() {
                 } else if (data.type === "complete") {
                   setProgress(100);
                   setRiskScore(calculateRiskScore(collectedResults));
+                  if (data.scan_id) setScanId(data.scan_id);
                   setStatus("complete");
                   setActiveTab("overview");
                 } else if (data.type === "error") {
@@ -266,10 +278,23 @@ export default function ScanPage() {
         setRiskScore(calculateRiskScore(collectedResults));
       }
 
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        console.log("Scan cancelled");
+        return;
+      }
       console.error("Scan error:", err);
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
       setStatus("error");
+    }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setStatus("idle");
+      setTerminalLog(prev => [...prev, "[!] User aborted the scanner process..."]);
+      setError("Scan cancelled by user.");
     }
   };
 
@@ -338,10 +363,10 @@ export default function ScanPage() {
           {/* Left Column - Configuration */}
           <div className="lg:col-span-1 space-y-4">
             {/* Scan Mode */}
-            <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-4">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <div className="bg-[#050505] border border-gray-800 p-4 shadow-[0_0_10px_rgba(0,212,170,0.05)]">
+              <h3 className="text-xs font-mono text-[#00d4aa] uppercase tracking-wide mb-3 flex items-center gap-2">
                 {Icons.settings}
-                Scan Mode
+                Scan Protocol
               </h3>
               <div className="space-y-2">
                 {SCAN_MODES.map((mode) => (
@@ -390,62 +415,68 @@ export default function ScanPage() {
           {/* Right Column - Target & Results */}
           <div className="lg:col-span-2 space-y-4">
             {/* Target Input */}
-            <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-4">
-              <label className="block text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Target URL</label>
-              <div className="flex gap-3">
+            <div className="bg-[#050505] border border-gray-800 p-4 shadow-[0_0_10px_rgba(0,212,170,0.05)]">
+              <label className="block text-xs font-mono text-[#00d4aa] uppercase tracking-wide mb-2">Target Host</label>
+              <div className="flex gap-2">
                 <input
                   type="url"
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
                   placeholder="https://example.com"
                   disabled={status === "scanning"}
-                  className="flex-1 bg-[#0a0a0f] border border-gray-800 rounded-lg px-4 py-2.5 text-sm font-mono placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all disabled:opacity-50"
+                  className="flex-1 bg-[#0a0a0f] border border-gray-700 px-4 py-2.5 text-sm font-mono placeholder-gray-600 focus:border-[#00ff41] focus:ring-1 focus:ring-[#00ff41]/20 transition-all disabled:opacity-50"
                 />
                 <button
                   onClick={handleScan}
                   disabled={status === "scanning" || !target.trim()}
-                  className="px-6 py-2.5 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2.5 bg-[#00d4aa] hover:bg-[#00ff41] text-[#050505] font-mono font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-[0_0_10px_rgba(0,212,170,0.3)] hover:shadow-[0_0_15px_rgba(0,255,65,0.6)]"
                 >
                   {status === "scanning" ? (
                     <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
+                      <div className="w-4 h-4 rounded-full border-2 border-t-transparent border-[#050505] animate-spin"></div>
                       <span>{progress}%</span>
                     </>
                   ) : (
                     <>
                       {Icons.scan}
-                      <span>Scan</span>
+                      <span>Engage</span>
                     </>
                   )}
                 </button>
+                {status === "scanning" && (
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2.5 bg-red-500/10 border border-red-500/50 hover:bg-red-500 hover:text-black text-red-500 font-mono font-bold uppercase tracking-widest transition-all flex items-center gap-2 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                  >
+                    Abort
+                  </button>
+                )}
               </div>
-              <p className="mt-2 text-xs text-gray-600 font-mono">Only scan targets you own or have permission to test.</p>
+              <p className="mt-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest">Only engage authorized parameters. Unauthorized reconnaissance is prohibited.</p>
             </div>
 
             {/* Scanning Progress */}
             {status === "scanning" && (
-              <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-[#00d4aa] flex items-center gap-2">
-                    <div className="w-2 h-2 bg-[#00d4aa] rounded-full animate-pulse" />
-                    Scanning...
+              <div className="bg-[#050505] border border-gray-800 p-4 shadow-[0_0_10px_rgba(0,255,65,0.05)]">
+                <div className="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+                  <span className="text-sm font-mono text-[#00ff41] flex items-center gap-2 uppercase tracking-wide">
+                    <div className="w-2 h-2 bg-[#00ff41] rounded-none animate-ping" />
+                    [Active Reconnaissance Stream]
                   </span>
-                  <span className="text-xs text-gray-500 font-mono">{progress}%</span>
+                  <span className="text-xs text-gray-500 font-mono border border-gray-700 px-2 py-0.5">{progress}%</span>
                 </div>
-                <div className="w-full bg-gray-800 rounded-full h-1 mb-4">
-                  <div className="bg-[#00d4aa] h-1 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                <div className="w-full bg-[#0a0a0f] border border-gray-800 h-2 mb-4 p-0.5">
+                  <div className="bg-[#00ff41] h-full transition-all duration-300 shadow-[0_0_8px_rgba(0,255,65,0.8)]" style={{ width: `${progress}%` }} />
                 </div>
-                <div className="bg-[#0a0a0f] rounded-lg p-3 font-mono text-xs border border-gray-800 max-h-32 overflow-y-auto">
+                <div className="bg-[#0a0a0f] p-3 font-mono text-xs border border-gray-800 max-h-48 overflow-y-auto w-full relative">
                   {terminalLog.map((log, i) => (
-                    <div key={i} className="text-gray-400 py-0.5">
+                    <div key={i} className="text-gray-400 py-0.5 break-all">
                       <span className="text-gray-600 mr-2">[{String(i + 1).padStart(2, "0")}]</span>
-                      <span className="text-[#00d4aa]/70">{log}</span>
+                      <span className="text-[#00ff41]/90">{log}</span>
                     </div>
                   ))}
-                  <span className="text-gray-600 animate-pulse">█</span>
+                  <div ref={terminalEndRef} className="h-1" />
+                  <span className="text-[#00ff41] animate-pulse absolute bottom-3 left-4 mt-2">█</span>
                 </div>
               </div>
             )}
@@ -514,13 +545,34 @@ export default function ScanPage() {
                           <div className="text-xs text-gray-500 mt-1">Low/Info</div>
                         </div>
                       </div>
-                      <div className="bg-[#0a0a0f] rounded-lg p-4 border border-gray-800">
-                        <h4 className="text-sm font-medium text-gray-300 mb-3">Scan Summary</h4>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="flex justify-between"><span className="text-gray-500">Target:</span><span className="text-[#00d4aa] font-mono text-xs truncate max-w-[200px]">{target}</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Mode:</span><span className="text-gray-300">{SCAN_MODES.find(m => m.id === scanMode)?.name}</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Findings:</span><span className="text-gray-300">{results.length}</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Technologies:</span><span className="text-gray-300">{techStack.length}</span></div>
+                      <div className="bg-[#0a0a0f] border border-[#00d4aa]/30 p-4 shadow-[0_0_10px_rgba(0,212,170,0.05)]">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#00d4aa]/20">
+                          <h4 className="text-sm font-mono text-[#00d4aa] uppercase tracking-wider">Mission Debrief</h4>
+                          
+                          {scanId && (
+                            <div className="flex gap-2">
+                              <a 
+                                href={`${API_URL}/scans/${scanId}/report/html`} 
+                                target="_blank"
+                                className="px-3 py-1 bg-gray-900 border border-gray-700 hover:border-[#00d4aa] hover:text-[#00d4aa] text-xs font-mono transition-all flex items-center gap-1"
+                              >
+                                {Icons.code} HTML
+                              </a>
+                              <a 
+                                href={`${API_URL}/scans/${scanId}/report/json`} 
+                                target="_blank"
+                                className="px-3 py-1 bg-gray-900 border border-gray-700 hover:border-[#00ff41] hover:text-[#00ff41] text-xs font-mono transition-all flex items-center gap-1"
+                              >
+                                {Icons.chart} JSON
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm font-mono">
+                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Target Host:</span><span className="text-[#00ff41] truncate">{target}</span></div>
+                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Protocol:</span><span className="text-gray-300 uppercase">{SCAN_MODES.find(m => m.id === scanMode)?.name}</span></div>
+                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Anomalies Detected:</span><span className="text-gray-300">{results.length}</span></div>
+                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Tech Signatures:</span><span className="text-gray-300">{techStack.length}</span></div>
                         </div>
                       </div>
                     </div>

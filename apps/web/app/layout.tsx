@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Navbar from "../components/Navbar";
 
 export const metadata: Metadata = {
   title: "ReconScience - Security Reconnaissance Platform",
@@ -16,7 +17,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased bg-[#0a0a0f]">
+      <body className="antialiased bg-[#050505] text-[#e5e5e5] cyber-grid selection:bg-[#00d4aa] selection:text-black">
+        <Navbar />
         {children}
       </body>
     </html>
