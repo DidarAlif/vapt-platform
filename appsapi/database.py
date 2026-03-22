@@ -17,6 +17,17 @@ DATABASE_URL = (
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# Strip pgbouncer=true from Supabase pooler URLs (psycopg2 doesn't understand it)
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+parsed = urlparse(DATABASE_URL)
+if parsed.query:
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    # Remove pgbouncer param that Supabase adds
+    params.pop("pgbouncer", None)
+    # Rebuild URL without pgbouncer
+    new_query = urlencode(params, doseq=True)
+    DATABASE_URL = urlunparse(parsed._replace(query=new_query))
+
 # Ensure SSL for cloud databases (Supabase, etc.)
 if "supabase" in DATABASE_URL or "render" in DATABASE_URL or "neon" in DATABASE_URL:
     if "sslmode" not in DATABASE_URL:
