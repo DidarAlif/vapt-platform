@@ -14,28 +14,29 @@ function VerifyEmailContent() {
     const pending = searchParams.get("pending");
 
     const [status, setStatus] = useState<"pending" | "verifying" | "success" | "error">(
-        pending ? "pending" : "verifying"
+        token && !pending ? "verifying" : "pending"
     );
     const [error, setError] = useState("");
-    const [email, setEmail] = useState("");
+    const [email, setEmail] = useState(searchParams.get("email") || "");
+    const [otp, setOtp] = useState("");
     const [resendLoading, setResendLoading] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
 
     useEffect(() => {
         const userData = localStorage.getItem("user");
-        if (userData) {
+        if (userData && !email) {
             try {
                 const user = JSON.parse(userData);
                 setEmail(user.email);
             } catch { }
         }
 
-        if (token) {
-            verifyEmail(token);
+        if (token && status === "verifying") {
+            verifyEmailTokenString(token);
         }
-    }, [token]);
+    }, [token, status]);
 
-    const verifyEmail = async (verificationToken: string) => {
+    const verifyEmailTokenString = async (verificationToken: string) => {
         setStatus("verifying");
         try {
             const response = await fetch(`${API_URL}/auth/verify-email`, {
@@ -62,6 +63,16 @@ function VerifyEmailContent() {
             setError(err instanceof Error ? err.message : "Verification failed");
             setStatus("error");
         }
+    };
+
+    const handleVerifySubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (otp.length !== 6) {
+            setError("Please enter the 6-digit OTP");
+            setStatus("error");
+            return;
+        }
+        verifyEmailTokenString(otp);
     };
 
     const handleResend = async () => {
@@ -100,37 +111,61 @@ function VerifyEmailContent() {
                 <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
             </div>
 
-            {status === "pending" && (
-                <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
+            {(status === "pending" || status === "error") && (
+                <form onSubmit={handleVerifySubmit} className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
                     <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[#00d4aa]/10 flex items-center justify-center">
                         <svg className="w-6 h-6 text-[#00d4aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                     </div>
                     <h1 className="text-xl font-bold text-gray-100 mb-2">Check Your Email</h1>
-                    <p className="text-gray-400 text-sm mb-4">
-                        We've sent a verification link to <span className="text-[#00d4aa] font-mono">{email}</span>
+                    <p className="text-gray-400 text-sm mb-6">
+                        We've sent a 6-digit verification code to <br/>
+                        <span className="text-[#00d4aa] font-mono">{email}</span><br/>
+                        Please enter it below.
                     </p>
-                    <p className="text-gray-500 text-xs mb-6">
-                        Click the link in your email to verify your account. The link expires in 24 hours.
-                    </p>
+
+                    {status === "error" && (
+                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="mb-6">
+                        <input
+                            type="text"
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                            required
+                            placeholder="• • • • • •"
+                            className="w-full text-center tracking-[0.5em] font-mono text-3xl bg-[#0a0a0f] border border-gray-800 rounded-lg px-2 py-4 text-[#00d4aa] placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all font-bold"
+                        />
+                    </div>
 
                     <div className="space-y-3">
                         <button
-                            onClick={handleResend}
-                            disabled={resendLoading || resendSuccess}
-                            className="w-full py-2.5 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all disabled:opacity-50"
+                            type="submit"
+                            className="w-full py-2.5 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all"
                         >
-                            {resendLoading ? "Sending..." : resendSuccess ? "Email Sent!" : "Resend Verification Email"}
+                            Verify Email
                         </button>
                         <button
+                            type="button"
+                            onClick={handleResend}
+                            disabled={resendLoading || resendSuccess || !email}
+                            className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium rounded-lg transition-all disabled:opacity-50"
+                        >
+                            {resendLoading ? "Sending..." : resendSuccess ? "OTP Sent!" : "Resend Code"}
+                        </button>
+                        <button
+                            type="button"
                             onClick={handleLogout}
-                            className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-all"
+                            className="w-full py-2 text-gray-500 hover:text-gray-400 text-sm font-medium transition-all"
                         >
                             Use Different Email
                         </button>
                     </div>
-                </div>
+                </form>
             )}
 
             {status === "verifying" && (
@@ -141,7 +176,7 @@ function VerifyEmailContent() {
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
                     </div>
-                    <h1 className="text-xl font-bold text-gray-100 mb-2">Verifying Email</h1>
+                    <h1 className="text-xl font-bold text-gray-100 mb-2">Verifying Code</h1>
                     <p className="text-gray-400 text-sm">Please wait...</p>
                 </div>
             )}
@@ -161,33 +196,6 @@ function VerifyEmailContent() {
                     >
                         Go to Scanner
                     </Link>
-                </div>
-            )}
-
-            {status === "error" && (
-                <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </div>
-                    <h1 className="text-xl font-bold text-gray-100 mb-2">Verification Failed</h1>
-                    <p className="text-red-400 text-sm mb-6">{error}</p>
-                    <div className="space-y-3">
-                        <button
-                            onClick={handleResend}
-                            disabled={resendLoading || !email}
-                            className="w-full py-2.5 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all disabled:opacity-50"
-                        >
-                            {resendLoading ? "Sending..." : "Request New Link"}
-                        </button>
-                        <Link
-                            href="/login"
-                            className="block w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-all text-center"
-                        >
-                            Back to Login
-                        </Link>
-                    </div>
                 </div>
             )}
 

@@ -23,8 +23,8 @@ DEBUG_EMAIL = os.getenv("DEBUG_EMAIL", "true").lower() == "true"
 
 
 def generate_verification_token() -> str:
-    """Generate a secure random verification token."""
-    return secrets.token_urlsafe(32)
+    """Generate a secure 6-digit verification OTP."""
+    return "".join([str(secrets.randbelow(10)) for _ in range(6)])
 
 
 def get_token_expiry() -> datetime:
@@ -83,13 +83,13 @@ def send_verification_email(to_email: str, to_name: str, token: str) -> bool:
             <div class="logo">ReconScience</div>
             <h1>Verify Your Email</h1>
             <p>Hi {to_name},</p>
-            <p>Thanks for signing up for ReconScience. Please verify your email address to start using the security scanning platform.</p>
-            <p style="text-align: center; margin: 32px 0;">
-                <a href="{verification_url}" class="btn">Verify Email Address</a>
-            </p>
-            <p>Or copy this link:</p>
-            <p class="code">{verification_url}</p>
-            <p>This link expires in 24 hours.</p>
+            <p>Thanks for signing up for ReconScience. Please use the following OTP to verify your email address:</p>
+            <div style="text-align: center; margin: 32px 0;">
+                <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #00d4aa; background: #0a0a0f; padding: 16px 24px; border-radius: 8px; display: inline-block;">
+                    {token}
+                </div>
+            </div>
+            <p>This OTP expires in 24 hours.</p>
             <div class="footer">
                 <p>If you didn't create an account, you can safely ignore this email.</p>
                 <p>&copy; 2026 ReconScience. All rights reserved.</p>
