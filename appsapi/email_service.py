@@ -1,16 +1,21 @@
 """
 Email verification service for ReconScience.
-Uses Resend API for reliable email delivery.
+Uses SMTP (Gmail) for reliable and free email delivery.
 """
 import os
 import secrets
-import resend
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from typing import Optional
 
-# Resend configuration
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "ReconScience <onboarding@resend.dev>")
+# SMTP configuration
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "alifmddidarulalam@gmail.com")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")  # Google App Password
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "ReconScience <alifmddidarulalam@gmail.com>")
 
 # Frontend URL for verification links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -40,27 +45,45 @@ def is_token_expired(sent_at: Optional[datetime]) -> bool:
     return datetime.utcnow() > expiry
 
 
-def _init_resend():
-    """Initialize Resend with API key."""
-    if RESEND_API_KEY:
-        resend.api_key = RESEND_API_KEY
-    else:
-        print("[Email] WARNING: RESEND_API_KEY not set")
+def _send_email_smtp(to_email: str, subject: str, html_content: str) -> bool:
+    """Internal helper to send an email via SMTP."""
+    if not SMTP_PASSWORD:
+        print("[Email] SMTP_PASSWORD not configured, skipping email send")
+        return False
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = SMTP_FROM_EMAIL
+        msg["To"] = to_email
+
+        # Attach the HTML content
+        part = MIMEText(html_content, "html")
+        msg.attach(part)
+
+        # Connect to Gmail SMTP server
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, to_email, msg.as_string())
+        server.quit()
+        
+        return True
+    except Exception as e:
+        print(f"[Email ERROR] Failed to send email via SMTP: {type(e).__name__}: {e}")
+        return False
 
 
 def send_verification_email(to_email: str, to_name: str, token: str) -> bool:
     """
-    Send email verification link to user via Resend.
+    Send email verification link to user via SMTP.
     Returns True on success, False on failure.
     """
-    if not RESEND_API_KEY:
-        print("[Email] RESEND_API_KEY not configured, skipping email send")
+    if not SMTP_PASSWORD:
+        print("[Email] SMTP_PASSWORD not configured, skipping email send")
         print(f"[Email] Verification token for {to_email}: {token}")
         print(f"[Email] Verify URL: {FRONTEND_URL}/verify-email?token={token}")
         return False
-
-    _init_resend()
-    verification_url = f"{FRONTEND_URL}/verify-email?token={token}"
 
     html_content = f"""
     <!DOCTYPE html>
@@ -99,33 +122,20 @@ def send_verification_email(to_email: str, to_name: str, token: str) -> bool:
     </html>
     """
 
-    try:
-        params = {
-            "from": RESEND_FROM_EMAIL,
-            "to": [to_email],
-            "subject": "Verify your ReconScience account",
-            "html": html_content,
-        }
-
-        email_response = resend.Emails.send(params)
-
-        if DEBUG_EMAIL:
-            print(f"[Email] Verification email sent to {to_email}: {email_response}")
-
-        return True
-
-    except Exception as e:
-        print(f"[Email ERROR] Failed to send verification email: {type(e).__name__}: {e}")
-        return False
+    success = _send_email_smtp(to_email, "Verify your ReconScience account", html_content)
+    
+    if success and DEBUG_EMAIL:
+        print(f"[Email] Verification email sent to {to_email}")
+        
+    return success
 
 
 def send_password_reset_email(to_email: str, to_name: str, token: str) -> bool:
-    """Send password reset link to user via Resend."""
-    if not RESEND_API_KEY:
-        print("[Email] RESEND_API_KEY not configured")
+    """Send password reset link to user via SMTP."""
+    if not SMTP_PASSWORD:
+        print("[Email] SMTP_PASSWORD not configured")
         return False
 
-    _init_resend()
     reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
 
     html_content = f"""
@@ -161,17 +171,6 @@ def send_password_reset_email(to_email: str, to_name: str, token: str) -> bool:
     </html>
     """
 
-    try:
-        params = {
-            "from": RESEND_FROM_EMAIL,
-            "to": [to_email],
-            "subject": "Reset your ReconScience password",
-            "html": html_content,
-        }
+    success = _send_email_smtp(to_email, "Reset your ReconScience password", html_content)
+    return success
 
-        resend.Emails.send(params)
-        return True
-
-    except Exception as e:
-        print(f"[Email ERROR] Failed to send reset email: {type(e).__name__}: {e}")
-        return False
