@@ -45,31 +45,40 @@ def is_token_expired(sent_at: Optional[datetime]) -> bool:
     return datetime.utcnow() > expiry
 
 
+import urllib.request
+import json
+
 def _send_email_smtp(to_email: str, subject: str, html_content: str) -> bool:
-    """Internal helper to send an email via SMTP."""
+    """Internal helper to send an email by proxying through Vercel's Serverless environment."""
     if not SMTP_PASSWORD:
         print("[Email] SMTP_PASSWORD not configured, skipping email send")
         return False
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = SMTP_FROM_EMAIL
-        msg["To"] = to_email
-
-        # Attach the HTML content
-        part = MIMEText(html_content, "html")
-        msg.attach(part)
-
-        # Connect to Gmail SMTP server using SSL with a 10s timeout to prevent hanging
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(SMTP_USER, to_email, msg.as_string())
-        server.quit()
+        # Render blocks outgoing port 465 (SMTP). 
+        # But Vercel does not block it. So we proxy the exact credentials and HTML payload
+        # to the Vercel HTTPS endpoint, which securely executes the SMTP handoff in Next.js Server Actions.
+        url = f"{FRONTEND_URL}/api/send-email"
         
-        return True
+        payload = json.dumps({
+            "to": to_email,
+            "subject": subject,
+            "html": html_content,
+            "smtp_user": SMTP_USER,
+            "smtp_password": SMTP_PASSWORD
+        }).encode('utf-8')
+        
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        
+        with urllib.request.urlopen(req, timeout=15) as response:
+            if response.status == 200:
+                return True
+            else:
+                body = response.read().decode('utf-8')
+                print(f"[Email ERROR] Vercel Relay failed with status {response.status}: {body}")
+                return False
     except Exception as e:
-        print(f"[Email ERROR] Failed to send email via SMTP: {type(e).__name__}: {e}")
+        print(f"[Email ERROR] Failed to connect to Vercel Relay: {type(e).__name__}: {e}")
         return False
 
 
