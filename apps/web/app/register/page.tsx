@@ -55,11 +55,6 @@ export default function RegisterPage() {
                 throw new Error(data.detail || "Registration failed");
             }
 
-            // Store tokens
-            localStorage.setItem("access_token", data.access_token);
-            localStorage.setItem("refresh_token", data.refresh_token);
-            localStorage.setItem("user", JSON.stringify(data.user));
-
             // Registration successful - redirect to verify-email
             router.push(`/verify-email?email=${encodeURIComponent(email)}`);
         } catch (err) {

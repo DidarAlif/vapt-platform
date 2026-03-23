@@ -68,10 +68,13 @@ def health_check():
     return {"status": "healthy", "service": "reconscience-api", "version": "2.1"}
 
 
-# ============== Authentication Routes ==============
-@app.post("/auth/register", response_model=TokenResponse)
+class RegisterResponse(BaseModel):
+    message: str
+    email: str
+
+@app.post("/auth/register", response_model=RegisterResponse)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user. Sends verification email."""
+    """Register a new user. Sends verification email. No tokens are issued here."""
     try:
         existing = get_user_by_email(db, user_data.email)
         if existing:
@@ -79,21 +82,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         
         user = create_user(db, user_data)
         
-        access_token = create_access_token({"sub": str(user.id), "email": user.email})
-        refresh_token = create_refresh_token({"sub": str(user.id), "email": user.email})
-        
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            user=UserResponse(
-                id=str(user.id),
-                email=user.email,
-                name=user.name,
-                role=user.role,
-                is_verified=user.is_verified,
-                created_at=user.created_at
-            )
-        )
+        return RegisterResponse(message="Registration successful", email=user.email)
     except HTTPException:
         raise
     except Exception as e:
@@ -107,6 +96,9 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     user = authenticate_user(db, credentials.email, credentials.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Please verify your email address first. Check your inbox.")
     
     access_token = create_access_token({"sub": str(user.id), "email": user.email})
     refresh_token = create_refresh_token({"sub": str(user.id), "email": user.email})
@@ -138,14 +130,28 @@ def get_me(user: User = Depends(require_user)):
     )
 
 
-@app.post("/auth/verify-email")
+@app.post("/auth/verify-email", response_model=TokenResponse)
 def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db)):
-    """Verify user email with token."""
+    """Verify user email with token and issue JWTs."""
     user = verify_user_email(db, request.token)
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+        raise HTTPException(status_code=400, detail="Invalid or expired verification OTP")
     
-    return {"message": "Email verified successfully", "verified": True}
+    access_token = create_access_token({"sub": str(user.id), "email": user.email})
+    refresh_token = create_refresh_token({"sub": str(user.id), "email": user.email})
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.name,
+            role=user.role,
+            is_verified=user.is_verified,
+            created_at=user.created_at
+        )
+    )
 
 
 @app.post("/auth/resend-verification")

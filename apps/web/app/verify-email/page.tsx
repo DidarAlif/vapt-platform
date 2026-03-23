@@ -51,12 +51,10 @@ function VerifyEmailContent() {
                 throw new Error(data.detail || "Verification failed");
             }
 
-            const userData = localStorage.getItem("user");
-            if (userData) {
-                const user = JSON.parse(userData);
-                user.is_verified = true;
-                localStorage.setItem("user", JSON.stringify(user));
-            }
+            // Successfully verified! Save the newly issued access tokens explicitly now.
+            localStorage.setItem("access_token", data.access_token);
+            localStorage.setItem("refresh_token", data.refresh_token);
+            localStorage.setItem("user", JSON.stringify(data.user));
 
             setStatus("success");
         } catch (err) {
