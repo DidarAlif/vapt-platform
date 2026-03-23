@@ -61,9 +61,8 @@ def _send_email_smtp(to_email: str, subject: str, html_content: str) -> bool:
         part = MIMEText(html_content, "html")
         msg.attach(part)
 
-        # Connect to Gmail SMTP server
-        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
-        server.starttls()
+        # Connect to Gmail SMTP server using SSL with a 10s timeout to prevent hanging
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.sendmail(SMTP_USER, to_email, msg.as_string())
         server.quit()
