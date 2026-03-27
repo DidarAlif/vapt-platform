@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -55,7 +54,6 @@ export default function RegisterPage() {
                 throw new Error(data.detail || "Registration failed");
             }
 
-            // Registration successful - redirect to verify-email
             router.push(`/verify-email?email=${encodeURIComponent(email)}`);
         } catch (err) {
             console.error("Registration error:", err);
@@ -70,51 +68,66 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4 py-8">
+        <div className="min-h-screen bg-[#12131c] flex items-center justify-center px-4 py-8">
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 mx-auto relative mb-4">
-                        <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
+                    <div className="w-12 h-12 mx-auto bg-primary-container rounded-xl flex items-center justify-center mb-4">
+                        <span
+                            className="material-symbols-outlined text-on-primary-container text-2xl"
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                        >
+                            radar
+                        </span>
                     </div>
-                    <h1 className="text-xl font-bold text-gray-100">Create Account</h1>
-                    <p className="text-gray-500 text-sm mt-1">Join ReconScience security platform</p>
+                    <h1 className="text-2xl font-headline font-bold text-on-surface tracking-tight">Create Account</h1>
+                    <p className="text-on-surface-variant text-sm mt-1 font-body">Join the RECONSCIENCE platform</p>
                 </div>
 
                 {/* Register Form */}
-                <form onSubmit={handleSubmit} className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
+                <form
+                    onSubmit={handleSubmit}
+                    className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-8"
+                >
                     {error && (
-                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                        <div className="mb-6 p-4 bg-error-container/20 border border-error/30 rounded-xl text-error text-sm flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">error</span>
                             {error}
                         </div>
                     )}
 
-                    <div className="mb-4">
-                        <label className="block text-xs text-gray-400 uppercase mb-2 font-mono">Full Name</label>
+                    <div className="mb-5">
+                        <label className="block text-[10px] font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
+                            Full Name
+                        </label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             required
-                            className="w-full bg-[#0a0a0f] border border-gray-800 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all"
+                            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3.5 text-on-surface placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none font-body"
                             placeholder="John Doe"
                         />
                     </div>
 
-                    <div className="mb-4">
-                        <label className="block text-xs text-gray-400 uppercase mb-2 font-mono">Email</label>
+                    <div className="mb-5">
+                        <label className="block text-[10px] font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
+                            Email Address
+                        </label>
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            className="w-full bg-[#0a0a0f] border border-gray-800 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all"
+                            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3.5 text-on-surface placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none font-body"
                             placeholder="your@email.com"
                         />
                     </div>
 
-                    <div className="mb-4">
-                        <label className="block text-xs text-gray-400 uppercase mb-2 font-mono">Password</label>
+                    <div className="mb-5">
+                        <label className="block text-[10px] font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
+                            Password
+                        </label>
                         <div className="relative">
                             <input
                                 type={showPassword ? "text" : "password"}
@@ -122,36 +135,29 @@ export default function RegisterPage() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 maxLength={50}
-                                className="w-full bg-[#0a0a0f] border border-gray-800 rounded-lg px-4 py-3 pr-12 text-gray-100 placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all"
+                                className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3.5 pr-12 text-on-surface placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none font-body"
                                 placeholder="••••••••"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-on-surface transition-colors"
                             >
-                                {showPassword ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                    </svg>
-                                ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                )}
+                                <span className="material-symbols-outlined text-xl">
+                                    {showPassword ? "visibility_off" : "visibility"}
+                                </span>
                             </button>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                        <p className="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">info</span>
                             6-50 characters
                         </p>
                     </div>
 
-                    <div className="mb-6">
-                        <label className="block text-xs text-gray-400 uppercase mb-2 font-mono">Confirm Password</label>
+                    <div className="mb-8">
+                        <label className="block text-[10px] font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
+                            Confirm Password
+                        </label>
                         <div className="relative">
                             <input
                                 type={showConfirmPassword ? "text" : "password"}
@@ -159,24 +165,17 @@ export default function RegisterPage() {
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 required
                                 maxLength={50}
-                                className="w-full bg-[#0a0a0f] border border-gray-800 rounded-lg px-4 py-3 pr-12 text-gray-100 placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all"
+                                className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3.5 pr-12 text-on-surface placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none font-body"
                                 placeholder="••••••••"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-on-surface transition-colors"
                             >
-                                {showConfirmPassword ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                    </svg>
-                                ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                )}
+                                <span className="material-symbols-outlined text-xl">
+                                    {showConfirmPassword ? "visibility_off" : "visibility"}
+                                </span>
                             </button>
                         </div>
                     </div>
@@ -184,20 +183,20 @@ export default function RegisterPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all disabled:opacity-50"
+                        className="w-full py-3.5 bg-primary-container hover:bg-[#8433c4] text-on-primary-container font-headline font-bold rounded-xl transition-all disabled:opacity-50 active:scale-[0.98] shadow-[0_10px_30px_-10px_rgba(154,74,217,0.3)]"
                     >
                         {loading ? "Creating account..." : "Create Account"}
                     </button>
 
-                    <p className="mt-4 text-center text-gray-500 text-sm">
+                    <p className="mt-6 text-center text-on-surface-variant text-sm font-body">
                         Already have an account?{" "}
-                        <Link href="/login" className="text-[#00d4aa] hover:text-[#00b894]">
+                        <Link href="/login" className="text-primary hover:text-primary-fixed-dim font-medium">
                             Sign in
                         </Link>
                     </p>
                 </form>
 
-                <p className="mt-6 text-center text-gray-600 text-xs">
+                <p className="mt-8 text-center text-slate-600 text-xs font-headline tracking-widest uppercase">
                     © 2026 Alif. All rights reserved.
                 </p>
             </div>

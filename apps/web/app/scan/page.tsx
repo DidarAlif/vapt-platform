@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import AuthenticatedLayout from "../../components/AuthenticatedLayout";
 
 // Types
 interface ScanResult {
@@ -41,11 +41,11 @@ type ResultTab = "overview" | "vulnerabilities" | "headers" | "tech";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
-const SCAN_MODES = [
-  { id: "quick" as ScanMode, name: "Quick Recon", desc: "Tech fingerprinting & detection", time: "~2 min" },
-  { id: "full" as ScanMode, name: "Full Scan", desc: "CVEs, vulnerabilities, exposures", time: "~10 min" },
-  { id: "network" as ScanMode, name: "Network Scan", desc: "SSL, DNS, cloud services", time: "~5 min" },
-  { id: "custom" as ScanMode, name: "Custom", desc: "Select specific categories", time: "Variable" },
+const SCAN_MODES: { id: ScanMode; name: string; desc: string; time: string; icon: string }[] = [
+  { id: "quick", name: "Quick", desc: "Surface-level reconnaissance. Focuses on top 100 ports and common CVEs.", time: "~ 5 mins", icon: "bolt" },
+  { id: "full", name: "Full", desc: "Deep architectural audit. Full port sweep and directory fuzzing.", time: "~ 45 mins", icon: "vitals" },
+  { id: "network", name: "Network", desc: "Internal topology mapping. Discovers lateral movement vectors.", time: "~ 20 mins", icon: "hub" },
+  { id: "custom", name: "Custom", desc: "Define specific payloads, headers, and evasion techniques.", time: "Variable", icon: "tune" },
 ];
 
 const CATEGORIES = [
@@ -58,61 +58,6 @@ const CATEGORIES = [
   { id: "sqli", label: "SQL Injection", desc: "Database attacks" },
   { id: "rce", label: "RCE", desc: "Remote code execution" },
 ];
-
-// Minimal SVG Icons
-const Icons = {
-  scan: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-    </svg>
-  ),
-  shield: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-    </svg>
-  ),
-  server: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-    </svg>
-  ),
-  code: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-    </svg>
-  ),
-  chart: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-    </svg>
-  ),
-  lock: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-    </svg>
-  ),
-  logout: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-    </svg>
-  ),
-  zap: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-    </svg>
-  ),
-  globe: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-    </svg>
-  ),
-  settings: (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
-};
 
 export default function ScanPage() {
   const router = useRouter();
@@ -138,7 +83,6 @@ export default function ScanPage() {
   const [riskScore, setRiskScore] = useState(0);
   const [scanId, setScanId] = useState<string | null>(null);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -159,7 +103,6 @@ export default function ScanPage() {
 
     try {
       const parsedUser = JSON.parse(userData);
-      // Removed is_verified check - backend handles verification requirements
       setUser(parsedUser);
     } catch {
       router.push("/login");
@@ -168,13 +111,6 @@ export default function ScanPage() {
 
     setLoading(false);
   }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("user");
-    router.push("/login");
-  };
 
   const handleCategoryToggle = (categoryId: string) => {
     setSelectedCategories(prev =>
@@ -197,14 +133,12 @@ export default function ScanPage() {
 
     const token = localStorage.getItem("access_token");
 
-    // Use SSE for real-time progress
     const categories = scanMode === "custom" ? selectedCategories.join(",") : "";
     const sseUrl = `${API_URL}/scan/stream?target=${encodeURIComponent(target)}&scan_mode=${scanMode}&categories=${categories}`;
 
     abortControllerRef.current = new AbortController();
 
     try {
-      // For SSE, we need to make a fetch request with auth header
       const response = await fetch(sseUrl, {
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -264,7 +198,7 @@ export default function ScanPage() {
                 } else if (data.type === "error") {
                   throw new Error(data.message);
                 }
-              } catch (e) {
+              } catch {
                 // Skip invalid JSON
               }
             }
@@ -278,8 +212,8 @@ export default function ScanPage() {
         setRiskScore(calculateRiskScore(collectedResults));
       }
 
-    } catch (err: any) {
-      if (err.name === "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
         console.log("Scan cancelled");
         return;
       }
@@ -300,27 +234,26 @@ export default function ScanPage() {
 
   const calculateRiskScore = (findings: ScanResult[]): number => {
     if (!findings.length) return 0;
-    const weights = { critical: 40, high: 25, medium: 15, low: 5, info: 1 };
+    const weights: Record<string, number> = { critical: 40, high: 25, medium: 15, low: 5, info: 1 };
     const score = findings.reduce((acc, f) => acc + (weights[f.severity] || 0), 0);
     return Math.min(100, score);
   };
 
-  const getSeverityStyles = (severity: string) => {
-    const base = "px-2 py-0.5 rounded text-xs font-medium uppercase";
+  const getSeverityBadge = (severity: string) => {
     const styles: Record<string, string> = {
-      critical: `${base} bg-red-500/20 text-red-400 border border-red-500/40`,
-      high: `${base} bg-orange-500/20 text-orange-400 border border-orange-500/40`,
-      medium: `${base} bg-yellow-500/20 text-yellow-400 border border-yellow-500/40`,
-      low: `${base} bg-emerald-500/20 text-emerald-400 border border-emerald-500/40`,
-      info: `${base} bg-slate-500/20 text-slate-400 border border-slate-500/40`,
+      critical: "bg-error text-error-container text-[9px] font-headline font-bold px-2 py-0.5 rounded",
+      high: "bg-tertiary-container text-on-tertiary-container text-[9px] font-headline font-bold px-2 py-0.5 rounded",
+      medium: "bg-[#ffcc00] text-surface text-[9px] font-headline font-bold px-2 py-0.5 rounded",
+      low: "bg-emerald-500/20 text-emerald-400 text-[9px] font-headline font-bold px-2 py-0.5 rounded",
+      info: "bg-surface-container-highest text-slate-400 text-[9px] font-headline font-bold px-2 py-0.5 rounded",
     };
     return styles[severity] || styles.info;
   };
 
   const getRiskColor = (score: number) => {
-    if (score >= 70) return "text-red-400";
-    if (score >= 40) return "text-orange-400";
-    if (score >= 20) return "text-yellow-400";
+    if (score >= 70) return "text-error";
+    if (score >= 40) return "text-tertiary";
+    if (score >= 20) return "text-[#ffcc00]";
     return "text-emerald-400";
   };
 
@@ -328,339 +261,426 @@ export default function ScanPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-gray-400 font-mono text-sm">Loading...</div>
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="text-on-surface-variant font-headline text-sm">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Header */}
-        <header className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 relative">
-              <Image src="/logo.png" alt="RS" fill className="object-contain" priority />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-[#00d4aa]">ReconScience</h1>
-              <p className="text-gray-500 text-xs font-mono">Security Reconnaissance</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-gray-500 font-mono">{user?.email}</span>
-            <a href="/history" className="text-gray-400 hover:text-gray-200 text-sm">History</a>
-            <button onClick={handleLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-200 text-sm">
-              {Icons.logout}
-              <span>Logout</span>
-            </button>
-          </div>
-        </header>
+    <AuthenticatedLayout>
+      <div className="max-w-6xl mx-auto px-10 py-12">
+        {/* Header Section */}
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold font-headline tracking-tight text-on-surface mb-2">
+            New Scan Configuration
+          </h1>
+          <p className="text-on-surface-variant font-body max-w-2xl leading-relaxed">
+            Initialize a high-fidelity diagnostic sweep across your infrastructure. Select a modality below to begin the ingestion process.
+          </p>
+        </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Configuration */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Scan Mode */}
-            <div className="bg-[#050505] border border-gray-800 p-4 shadow-[0_0_10px_rgba(0,212,170,0.05)]">
-              <h3 className="text-xs font-mono text-[#00d4aa] uppercase tracking-wide mb-3 flex items-center gap-2">
-                {Icons.settings}
-                Scan Protocol
-              </h3>
-              <div className="space-y-2">
-                {SCAN_MODES.map((mode) => (
-                  <button
-                    key={mode.id}
-                    onClick={() => setScanMode(mode.id)}
-                    disabled={status === "scanning"}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${scanMode === mode.id
-                      ? "bg-[#00d4aa]/10 border-[#00d4aa]/50 text-[#00d4aa]"
-                      : "bg-[#0a0a0f] border-gray-800 text-gray-400 hover:border-gray-700"
-                      } disabled:opacity-50`}
+        {/* Stage 1: Target Input */}
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="w-6 h-6 flex items-center justify-center rounded bg-primary-container text-[10px] font-bold text-on-primary-container">
+              01
+            </span>
+            <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-primary">
+              Target Definition
+            </h2>
+          </div>
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+              <span className="material-symbols-outlined text-primary/50 group-focus-within:text-primary transition-colors">
+                language
+              </span>
+            </div>
+            <input
+              type="url"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              disabled={status === "scanning"}
+              className="w-full bg-surface-container-low border-b-2 border-outline-variant/20 focus:border-primary focus:ring-0 text-xl font-headline py-6 pl-16 pr-8 transition-all outline-none text-on-surface placeholder:text-slate-600 disabled:opacity-50"
+              placeholder="https://target-infrastructure.io or 192.168.1.1"
+            />
+          </div>
+          <p className="mt-2 text-[10px] text-slate-500 font-headline uppercase tracking-widest">
+            Only engage authorized parameters. Unauthorized reconnaissance is prohibited.
+          </p>
+        </section>
+
+        {/* Stage 2: Mode Selection */}
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="w-6 h-6 flex items-center justify-center rounded bg-primary-container text-[10px] font-bold text-on-primary-container">
+              02
+            </span>
+            <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-primary">
+              Scan Modality
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {SCAN_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setScanMode(mode.id)}
+                disabled={status === "scanning"}
+                className={`flex flex-col items-start p-6 transition-all text-left group disabled:opacity-50 ${
+                  scanMode === mode.id
+                    ? "bg-surface-container-high border-l-2 border-primary"
+                    : "bg-surface-container-low border-l-2 border-transparent hover:border-primary/50 hover:bg-surface-container-high"
+                }`}
+              >
+                <span
+                  className={`material-symbols-outlined mb-4 text-3xl transition-colors ${
+                    scanMode === mode.id ? "text-primary" : "text-slate-500 group-hover:text-primary"
+                  }`}
+                >
+                  {mode.icon}
+                </span>
+                <h3 className="font-headline font-bold text-on-surface mb-1">{mode.name}</h3>
+                <p className="text-xs text-on-surface-variant font-body leading-snug">{mode.desc}</p>
+                <span className={`mt-4 text-[10px] font-bold tracking-widest uppercase ${
+                  scanMode === mode.id ? "text-primary" : "text-slate-500"
+                }`}>
+                  {mode.time}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Categories */}
+          {scanMode === "custom" && (
+            <div className="mt-6 bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4 font-headline">
+                Select scan categories
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {CATEGORIES.map((cat) => (
+                  <label
+                    key={cat.id}
+                    className="flex items-center gap-2 p-3 rounded-lg hover:bg-surface-container cursor-pointer transition-colors"
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-sm">{mode.name}</div>
-                        <div className="text-xs opacity-70 mt-0.5">{mode.desc}</div>
-                      </div>
-                      <span className="text-xs text-gray-500">{mode.time}</span>
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(cat.id)}
+                      onChange={() => handleCategoryToggle(cat.id)}
+                      className="rounded border-outline-variant bg-surface-container-highest text-primary focus:ring-primary/20"
+                    />
+                    <div>
+                      <span className="text-xs text-on-surface font-headline font-medium">{cat.label}</span>
+                      <p className="text-[10px] text-slate-500">{cat.desc}</p>
                     </div>
-                  </button>
+                  </label>
                 ))}
               </div>
-
-              {/* Custom Categories */}
-              {scanMode === "custom" && (
-                <div className="mt-4 pt-4 border-t border-gray-800">
-                  <p className="text-xs text-gray-500 mb-3">Select categories:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CATEGORIES.map((cat) => (
-                      <label key={cat.id} className="flex items-center gap-2 p-2 rounded hover:bg-gray-800/30 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedCategories.includes(cat.id)}
-                          onChange={() => handleCategoryToggle(cat.id)}
-                          className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-[#00d4aa] focus:ring-[#00d4aa]/20"
-                        />
-                        <span className="text-xs text-gray-300">{cat.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+          )}
+        </section>
 
-          {/* Right Column - Target & Results */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Target Input */}
-            <div className="bg-[#050505] border border-gray-800 p-4 shadow-[0_0_10px_rgba(0,212,170,0.05)]">
-              <label className="block text-xs font-mono text-[#00d4aa] uppercase tracking-wide mb-2">Target Host</label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                  placeholder="https://example.com"
-                  disabled={status === "scanning"}
-                  className="flex-1 bg-[#0a0a0f] border border-gray-700 px-4 py-2.5 text-sm font-mono placeholder-gray-600 focus:border-[#00ff41] focus:ring-1 focus:ring-[#00ff41]/20 transition-all disabled:opacity-50"
-                />
-                <button
-                  onClick={handleScan}
-                  disabled={status === "scanning" || !target.trim()}
-                  className="px-6 py-2.5 bg-[#00d4aa] hover:bg-[#00ff41] text-[#050505] font-mono font-bold uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-[0_0_10px_rgba(0,212,170,0.3)] hover:shadow-[0_0_15px_rgba(0,255,65,0.6)]"
-                >
-                  {status === "scanning" ? (
-                    <>
-                      <div className="w-4 h-4 rounded-full border-2 border-t-transparent border-[#050505] animate-spin"></div>
-                      <span>{progress}%</span>
-                    </>
-                  ) : (
-                    <>
-                      {Icons.scan}
-                      <span>Engage</span>
-                    </>
-                  )}
-                </button>
-                {status === "scanning" && (
+        {/* Bottom Action Area */}
+        {status === "idle" && (
+          <div className="flex items-center justify-between p-8 bg-surface-container-high rounded-2xl border border-primary/10 shadow-xl mb-10">
+            <div className="flex items-center gap-6">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Estimated duration</span>
+                <span className="text-lg font-headline font-bold text-on-surface">
+                  {SCAN_MODES.find(m => m.id === scanMode)?.time || "Variable"}
+                </span>
+              </div>
+              <div className="h-8 w-px bg-outline-variant/20"></div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Scan mode</span>
+                <span className="text-lg font-headline font-bold text-on-surface uppercase">
+                  {SCAN_MODES.find(m => m.id === scanMode)?.name}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleScan}
+              disabled={!target.trim()}
+              className="bg-primary-container hover:bg-[#8433c4] text-on-primary-container px-10 py-4 rounded-xl font-headline font-bold uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-[0_10px_30px_-10px_rgba(154,74,217,0.4)] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined">rocket_launch</span>
+              Start Scan
+            </button>
+          </div>
+        )}
+
+        {/* Scanning Progress */}
+        {status === "scanning" && (
+          <section className="mb-10">
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/10 overflow-hidden">
+              <div className="bg-surface-container-highest/50 px-6 py-3 flex items-center justify-between">
+                <span className="text-[10px] font-headline font-bold text-primary flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                  REAL-TIME SCAN ANALYTICS
+                </span>
+                <div className="flex items-center gap-4">
+                  <span className="text-[10px] font-headline text-on-surface-variant uppercase tracking-widest">
+                    Progress: {progress}%
+                  </span>
                   <button
                     onClick={handleCancel}
-                    className="px-4 py-2.5 bg-red-500/10 border border-red-500/50 hover:bg-red-500 hover:text-black text-red-500 font-mono font-bold uppercase tracking-widest transition-all flex items-center gap-2 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                    className="px-4 py-1.5 bg-error-container text-on-error-container text-[10px] font-headline font-bold rounded hover:bg-error transition-colors"
                   >
-                    Abort
+                    ABORT
                   </button>
-                )}
+                </div>
               </div>
-              <p className="mt-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest">Only engage authorized parameters. Unauthorized reconnaissance is prohibited.</p>
+              <div className="px-6 pt-4">
+                <div className="h-1 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300 shadow-[0_0_8px_rgba(224,182,255,0.8)]"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+              <div className="p-4 font-mono text-[10px] text-on-surface-variant/80 space-y-1 h-48 overflow-y-auto custom-scrollbar">
+                {terminalLog.map((log, i) => (
+                  <p key={i}>
+                    <span className="text-outline">[{String(i + 1).padStart(2, "0")}]</span>{" "}
+                    <span className="text-primary">{log}</span>
+                  </p>
+                ))}
+                <div ref={terminalEndRef} className="h-1" />
+                <p className="text-primary animate-pulse">_ BLINKING CURSOR</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Error State */}
+        {status === "error" && error && (
+          <div className="mb-10 bg-error-container/20 border border-error/30 rounded-xl p-6 flex items-center gap-3">
+            <span className="material-symbols-outlined text-error">error</span>
+            <span className="text-error text-sm font-body">{error}</span>
+          </div>
+        )}
+
+        {/* Results */}
+        {status === "complete" && (
+          <section className="space-y-8 mb-12">
+            {/* Results Header */}
+            <div className="grid grid-cols-12 gap-6">
+              <div className="col-span-8 bg-surface-container-low p-8 rounded-xl">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="px-2 py-0.5 bg-secondary-container/30 text-secondary text-[10px] font-bold font-headline rounded border border-secondary/20">
+                    SCAN COMPLETE
+                  </span>
+                </div>
+                <h2 className="text-3xl font-headline font-bold text-on-surface tracking-tight mb-2">
+                  {target}
+                </h2>
+                <div className="flex items-center gap-6 text-on-surface-variant font-body text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-sm">security</span>
+                    <span>Mode: <span className="text-on-surface font-medium uppercase">{SCAN_MODES.find(m => m.id === scanMode)?.name}</span></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-sm">bug_report</span>
+                    <span>Findings: <span className="text-on-surface font-medium">{results.length}</span></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-sm">code</span>
+                    <span>Tech Detected: <span className="text-on-surface font-medium">{techStack.length}</span></span>
+                  </div>
+                </div>
+              </div>
+              <div className={`col-span-4 bg-surface-container-high p-8 rounded-xl flex flex-col items-center justify-center border-l-4 ${riskScore >= 70 ? "border-error" : riskScore >= 40 ? "border-tertiary" : "border-emerald-500"}`}>
+                <span className="text-on-surface-variant font-headline text-[10px] tracking-widest uppercase mb-1">
+                  RISK SCORE
+                </span>
+                <div className={`text-7xl font-headline font-black ${getRiskColor(riskScore)}`}>
+                  {riskScore}
+                </div>
+              </div>
             </div>
 
-            {/* Scanning Progress */}
-            {status === "scanning" && (
-              <div className="bg-[#050505] border border-gray-800 p-4 shadow-[0_0_10px_rgba(0,255,65,0.05)]">
-                <div className="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
-                  <span className="text-sm font-mono text-[#00ff41] flex items-center gap-2 uppercase tracking-wide">
-                    <div className="w-2 h-2 bg-[#00ff41] rounded-none animate-ping" />
-                    [Active Reconnaissance Stream]
-                  </span>
-                  <span className="text-xs text-gray-500 font-mono border border-gray-700 px-2 py-0.5">{progress}%</span>
-                </div>
-                <div className="w-full bg-[#0a0a0f] border border-gray-800 h-2 mb-4 p-0.5">
-                  <div className="bg-[#00ff41] h-full transition-all duration-300 shadow-[0_0_8px_rgba(0,255,65,0.8)]" style={{ width: `${progress}%` }} />
-                </div>
-                <div className="bg-[#0a0a0f] p-3 font-mono text-xs border border-gray-800 max-h-48 overflow-y-auto w-full relative">
-                  {terminalLog.map((log, i) => (
-                    <div key={i} className="text-gray-400 py-0.5 break-all">
-                      <span className="text-gray-600 mr-2">[{String(i + 1).padStart(2, "0")}]</span>
-                      <span className="text-[#00ff41]/90">{log}</span>
-                    </div>
-                  ))}
-                  <div ref={terminalEndRef} className="h-1" />
-                  <span className="text-[#00ff41] animate-pulse absolute bottom-3 left-4 mt-2">█</span>
-                </div>
-              </div>
-            )}
+            {/* Tabs */}
+            <div className="bg-surface-container-low rounded-xl overflow-hidden">
+              <div className="flex border-b border-outline-variant/10 overflow-x-auto">
+                {[
+                  { id: "overview" as ResultTab, label: "Overview", icon: "analytics" },
+                  { id: "vulnerabilities" as ResultTab, label: `Findings (${results.length})`, icon: "shield" },
+                  { id: "headers" as ResultTab, label: "Headers", icon: "lock" },
+                  { id: "tech" as ResultTab, label: "Tech Stack", icon: "code" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-6 py-4 text-sm font-headline font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
+                      activeTab === tab.id
+                        ? "text-primary border-b-2 border-primary bg-primary/5"
+                        : "text-slate-500 hover:text-on-surface"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
 
-            {/* Error State */}
-            {status === "error" && error && (
-              <div className="bg-red-950/20 border border-red-500/30 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-red-400 text-sm">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {error}
-                </div>
-              </div>
-            )}
-
-            {/* Results */}
-            {status === "complete" && (
-              <div className="bg-[#12121a] border border-gray-800/50 rounded-lg overflow-hidden">
-                {/* Tabs */}
-                <div className="flex border-b border-gray-800 overflow-x-auto">
-                  {[
-                    { id: "overview" as ResultTab, label: "Overview", icon: Icons.chart },
-                    { id: "vulnerabilities" as ResultTab, label: `Findings (${results.length})`, icon: Icons.shield },
-                    { id: "headers" as ResultTab, label: "Headers", icon: Icons.lock },
-                    { id: "tech" as ResultTab, label: "Tech Stack", icon: Icons.code },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${activeTab === tab.id
-                        ? "text-[#00d4aa] border-b-2 border-[#00d4aa] bg-[#00d4aa]/5"
-                        : "text-gray-500 hover:text-gray-300"
-                        }`}
+                {/* Export buttons */}
+                {scanId && (
+                  <div className="ml-auto flex items-center gap-2 px-4">
+                    <a
+                      href={`${API_URL}/scans/${scanId}/report/html`}
+                      target="_blank"
+                      className="px-3 py-1.5 bg-surface-container-highest text-on-surface-variant text-[10px] font-headline font-bold rounded border border-outline-variant/20 hover:border-primary hover:text-primary transition-all flex items-center gap-1"
                     >
-                      {tab.icon}
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
+                      <span className="material-symbols-outlined text-xs">code</span> HTML
+                    </a>
+                    <a
+                      href={`${API_URL}/scans/${scanId}/report/json`}
+                      target="_blank"
+                      className="px-3 py-1.5 bg-surface-container-highest text-on-surface-variant text-[10px] font-headline font-bold rounded border border-outline-variant/20 hover:border-primary hover:text-primary transition-all flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-xs">data_object</span> JSON
+                    </a>
+                  </div>
+                )}
+              </div>
 
-                {/* Tab Content */}
-                <div className="p-5">
-                  {/* Overview */}
-                  {activeTab === "overview" && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        <div className="bg-[#0a0a0f] rounded-lg p-3 text-center border border-gray-800">
-                          <div className={`text-2xl font-bold ${getRiskColor(riskScore)}`}>{riskScore}</div>
-                          <div className="text-xs text-gray-500 mt-1">Risk Score</div>
-                        </div>
-                        <div className="bg-[#0a0a0f] rounded-lg p-3 text-center border border-gray-800">
-                          <div className="text-2xl font-bold text-red-400">{countBySeverity("critical")}</div>
-                          <div className="text-xs text-gray-500 mt-1">Critical</div>
-                        </div>
-                        <div className="bg-[#0a0a0f] rounded-lg p-3 text-center border border-gray-800">
-                          <div className="text-2xl font-bold text-orange-400">{countBySeverity("high")}</div>
-                          <div className="text-xs text-gray-500 mt-1">High</div>
-                        </div>
-                        <div className="bg-[#0a0a0f] rounded-lg p-3 text-center border border-gray-800">
-                          <div className="text-2xl font-bold text-yellow-400">{countBySeverity("medium")}</div>
-                          <div className="text-xs text-gray-500 mt-1">Medium</div>
-                        </div>
-                        <div className="bg-[#0a0a0f] rounded-lg p-3 text-center border border-gray-800">
-                          <div className="text-2xl font-bold text-emerald-400">{countBySeverity("low") + countBySeverity("info")}</div>
-                          <div className="text-xs text-gray-500 mt-1">Low/Info</div>
-                        </div>
+              <div className="p-6">
+                {/* Overview Tab */}
+                {activeTab === "overview" && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="bg-surface-container-lowest p-4 rounded-xl text-center">
+                        <div className={`text-3xl font-headline font-bold ${getRiskColor(riskScore)}`}>{riskScore}</div>
+                        <div className="text-[10px] text-slate-500 mt-1 font-headline uppercase">Risk Score</div>
                       </div>
-                      <div className="bg-[#0a0a0f] border border-[#00d4aa]/30 p-4 shadow-[0_0_10px_rgba(0,212,170,0.05)]">
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#00d4aa]/20">
-                          <h4 className="text-sm font-mono text-[#00d4aa] uppercase tracking-wider">Mission Debrief</h4>
-                          
-                          {scanId && (
-                            <div className="flex gap-2">
-                              <a 
-                                href={`${API_URL}/scans/${scanId}/report/html`} 
-                                target="_blank"
-                                className="px-3 py-1 bg-gray-900 border border-gray-700 hover:border-[#00d4aa] hover:text-[#00d4aa] text-xs font-mono transition-all flex items-center gap-1"
-                              >
-                                {Icons.code} HTML
-                              </a>
-                              <a 
-                                href={`${API_URL}/scans/${scanId}/report/json`} 
-                                target="_blank"
-                                className="px-3 py-1 bg-gray-900 border border-gray-700 hover:border-[#00ff41] hover:text-[#00ff41] text-xs font-mono transition-all flex items-center gap-1"
-                              >
-                                {Icons.chart} JSON
-                              </a>
-                            </div>
-                          )}
+                      <div className="bg-surface-container-lowest p-4 rounded-xl text-center">
+                        <div className="text-3xl font-headline font-bold text-error">{countBySeverity("critical")}</div>
+                        <div className="text-[10px] text-slate-500 mt-1 font-headline uppercase">Critical</div>
+                      </div>
+                      <div className="bg-surface-container-lowest p-4 rounded-xl text-center">
+                        <div className="text-3xl font-headline font-bold text-tertiary">{countBySeverity("high")}</div>
+                        <div className="text-[10px] text-slate-500 mt-1 font-headline uppercase">High</div>
+                      </div>
+                      <div className="bg-surface-container-lowest p-4 rounded-xl text-center">
+                        <div className="text-3xl font-headline font-bold text-[#ffcc00]">{countBySeverity("medium")}</div>
+                        <div className="text-[10px] text-slate-500 mt-1 font-headline uppercase">Medium</div>
+                      </div>
+                      <div className="bg-surface-container-lowest p-4 rounded-xl text-center">
+                        <div className="text-3xl font-headline font-bold text-emerald-400">{countBySeverity("low") + countBySeverity("info")}</div>
+                        <div className="text-[10px] text-slate-500 mt-1 font-headline uppercase">Low/Info</div>
+                      </div>
+                    </div>
+                    <div className="bg-surface-container p-6 rounded-xl border-l-2 border-primary/40">
+                      <h4 className="text-sm font-headline font-bold text-primary uppercase tracking-wider mb-4">Mission Debrief</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm font-body">
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 text-xs mb-1">Target Host:</span>
+                          <span className="text-primary truncate">{target}</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm font-mono">
-                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Target Host:</span><span className="text-[#00ff41] truncate">{target}</span></div>
-                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Protocol:</span><span className="text-gray-300 uppercase">{SCAN_MODES.find(m => m.id === scanMode)?.name}</span></div>
-                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Anomalies Detected:</span><span className="text-gray-300">{results.length}</span></div>
-                          <div className="flex flex-col"><span className="text-gray-600 text-xs mb-1">Tech Signatures:</span><span className="text-gray-300">{techStack.length}</span></div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 text-xs mb-1">Protocol:</span>
+                          <span className="text-on-surface uppercase">{SCAN_MODES.find(m => m.id === scanMode)?.name}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 text-xs mb-1">Anomalies Detected:</span>
+                          <span className="text-on-surface">{results.length}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 text-xs mb-1">Tech Signatures:</span>
+                          <span className="text-on-surface">{techStack.length}</span>
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Vulnerabilities */}
-                  {activeTab === "vulnerabilities" && (
-                    results.length === 0 ? (
-                      <div className="text-center py-10">
-                        <div className="text-gray-600 mb-2">{Icons.shield}</div>
-                        <p className="text-[#00d4aa] font-mono text-sm">No vulnerabilities detected</p>
-                        <p className="text-gray-500 text-xs mt-1">Scan completed with no findings.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="bg-[#0a0a0f]">
-                              <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Template</th>
-                              <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Finding</th>
-                              <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Severity</th>
-                              <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">URL</th>
+                {/* Vulnerabilities Tab */}
+                {activeTab === "vulnerabilities" && (
+                  results.length === 0 ? (
+                    <div className="text-center py-16">
+                      <span className="material-symbols-outlined text-4xl text-slate-600 mb-3 block">verified_user</span>
+                      <p className="text-primary font-headline text-sm">No vulnerabilities detected</p>
+                      <p className="text-slate-500 text-xs mt-1">Scan completed with no findings.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-surface-container-lowest text-slate-500 uppercase font-headline font-bold text-[9px] tracking-[0.15em]">
+                          <tr>
+                            <th className="px-6 py-3">Template</th>
+                            <th className="px-6 py-3">Finding</th>
+                            <th className="px-6 py-3 text-center">Severity</th>
+                            <th className="px-6 py-3">Matched URL</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-outline-variant/10 text-on-surface-variant text-xs">
+                          {results.map((r, i) => (
+                            <tr key={i} className="hover:bg-surface-container transition-colors">
+                              <td className="px-6 py-3 font-mono text-primary/80">{r.template_id}</td>
+                              <td className="px-6 py-3 text-on-surface font-medium">{r.name}</td>
+                              <td className="px-6 py-3 text-center">
+                                <span className={getSeverityBadge(r.severity)}>{r.severity.toUpperCase()}</span>
+                              </td>
+                              <td className="px-6 py-3 font-mono text-slate-500 max-w-[250px] truncate">{r.matched_at}</td>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-800">
-                            {results.map((r, i) => (
-                              <tr key={i} className="hover:bg-white/[0.02]">
-                                <td className="px-3 py-2 font-mono text-xs text-[#00d4aa]/80">{r.template_id}</td>
-                                <td className="px-3 py-2 text-sm text-gray-200">{r.name}</td>
-                                <td className="px-3 py-2"><span className={getSeverityStyles(r.severity)}>{r.severity}</span></td>
-                                <td className="px-3 py-2 font-mono text-xs text-gray-400 max-w-[200px] truncate">{r.matched_at}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )
-                  )}
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )}
 
-                  {/* Headers */}
-                  {activeTab === "headers" && (
-                    <div className="space-y-2">
-                      {headers.map((h, i) => (
-                        <div key={i} className={`p-3 rounded-lg border ${h.present ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"}`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-mono text-sm text-gray-200">{h.name}</span>
-                            <span className={`px-2 py-0.5 rounded text-xs ${h.present ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
-                              {h.present ? "Present" : "Missing"}
-                            </span>
-                          </div>
-                          {h.value && <p className="text-xs text-gray-500 font-mono truncate">{h.value}</p>}
-                          <p className="text-xs text-gray-600 mt-1">{h.recommendation}</p>
+                {/* Headers Tab */}
+                {activeTab === "headers" && (
+                  <div className="space-y-3">
+                    {headers.map((h, i) => (
+                      <div
+                        key={i}
+                        className={`p-4 rounded-lg border-l-4 ${
+                          h.present
+                            ? "bg-emerald-500/5 border-emerald-500/50"
+                            : "bg-error/5 border-error/50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-headline text-sm text-on-surface font-bold">{h.name}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-headline font-bold ${
+                              h.present ? "bg-emerald-500/20 text-emerald-400" : "bg-error/20 text-error"
+                            }`}
+                          >
+                            {h.present ? "PRESENT" : "MISSING"}
+                          </span>
+                        </div>
+                        {h.value && <p className="text-[10px] text-slate-500 font-mono truncate">{h.value}</p>}
+                        <p className="text-xs text-on-surface-variant mt-1">{h.recommendation}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Tech Stack Tab */}
+                {activeTab === "tech" && (
+                  techStack.length === 0 ? (
+                    <div className="text-center py-16">
+                      <span className="material-symbols-outlined text-4xl text-slate-600 mb-3 block">code</span>
+                      <p className="text-on-surface-variant text-sm">No technologies detected</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {techStack.map((t, i) => (
+                        <div key={i} className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10">
+                          <div className="text-[10px] text-slate-500 uppercase font-headline">{t.type}</div>
+                          <div className="text-on-surface font-headline font-bold text-sm mt-1">{t.name}</div>
+                          {t.version && <div className="text-xs text-primary font-mono mt-1">v{t.version}</div>}
                         </div>
                       ))}
                     </div>
-                  )}
-
-                  {/* Tech Stack */}
-                  {activeTab === "tech" && (
-                    techStack.length === 0 ? (
-                      <div className="text-center py-10">
-                        <div className="text-gray-600 mb-2">{Icons.code}</div>
-                        <p className="text-gray-400 text-sm">No technologies detected</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {techStack.map((t, i) => (
-                          <div key={i} className="bg-[#0a0a0f] rounded-lg p-3 border border-gray-800">
-                            <div className="text-xs text-gray-500 uppercase">{t.type}</div>
-                            <div className="text-gray-200 font-medium text-sm mt-1">{t.name}</div>
-                            {t.version && <div className="text-xs text-[#00d4aa] font-mono mt-1">v{t.version}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-                </div>
+                  )
+                )}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer className="mt-10 text-center border-t border-gray-800/50 pt-6">
-          <p className="font-mono text-xs text-gray-600">ReconScience • Security Reconnaissance Platform</p>
-          <p className="font-mono text-xs text-gray-700 mt-1">© 2026 Alif. All rights reserved.</p>
-        </footer>
+            </div>
+          </section>
+        )}
       </div>
-    </div>
+    </AuthenticatedLayout>
   );
 }

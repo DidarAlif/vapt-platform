@@ -1,51 +1,97 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-surface-container-low: #1a1b24;
+  --color-surface: #12131c;
+  --color-surface-container-lowest: #0d0e17;
+  --color-secondary-container: #4e3b8c;
+  --color-on-primary-fixed: #2e004e;
+  --color-surface-container-highest: #33343e;
+  --color-primary-fixed: #f2daff;
+  --color-on-tertiary-container: #fff7f4;
+  --color-surface-tint: #e0b6ff;
+  --color-on-surface-variant: #cac3d8;
+  --color-on-tertiary: #512400;
+  --color-tertiary-fixed-dim: #ffb688;
+  --color-on-surface: #e3e1ef;
+  --color-tertiary-container: #b55800;
+  --color-on-secondary: #352071;
+  --color-tertiary-fixed: #ffdbc7;
+  --color-on-secondary-fixed-variant: #4c3989;
+  --color-primary-fixed-dim: #e0b6ff;
+  --color-error-container: #93000a;
+  --color-on-secondary-container: #c0acff;
+  --color-secondary-fixed-dim: #cdbdff;
+  --color-on-primary: #4c007d;
+  --color-on-error-container: #ffdad6;
+  --color-on-tertiary-fixed: #311300;
+  --color-secondary-fixed: #e8deff;
+  --color-on-background: #e3e1ef;
+  --color-surface-container-high: #282933;
+  --color-on-primary-container: #fff6ff;
+  --color-error: #ffb4ab;
+  --color-on-primary-fixed-variant: #6a0baa;
+  --color-surface-container: #1e1f29;
+  --color-outline: #948ea1;
+  --color-on-secondary-fixed: #20025c;
+  --color-inverse-primary: #8433c4;
+  --color-on-tertiary-fixed-variant: #733600;
+  --color-surface-bright: #383843;
+  --color-background: #12131c;
+  --color-primary-container: #9a4ad9;
+  --color-primary: #e0b6ff;
+  --color-on-error: #690005;
+  --color-surface-dim: #12131c;
+  --color-inverse-on-surface: #2f303a;
+  --color-secondary: #cdbdff;
+  --color-outline-variant: #494455;
+  --color-inverse-surface: #e3e1ef;
+  --color-tertiary: #ffb688;
+  --color-surface-variant: #33343e;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "Manrope", sans-serif;
+  --font-label: "Space Grotesk", sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background-color: #12131c;
+  color: #e3e1ef;
+  font-family: "Manrope", sans-serif;
 }
 
-/* Cyberworld Grid Background - Hard sharp lines only */
-.cyber-grid {
-  background-color: #050505;
-  background-size: 40px 40px;
-  background-image: 
-    linear-gradient(to right, rgba(0, 212, 170, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 212, 170, 0.07) 1px, transparent 1px);
+h1, h2, h3, .font-headline {
+  font-family: "Space Grotesk", sans-serif;
 }
 
-/* Scrollbar Styling for Cyber feel */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #12131c;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #33343e;
+  border-radius: 10px;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #050505;
-  border-left: 1px solid rgba(0, 212, 170, 0.2);
+  background: #12131c;
 }
 ::-webkit-scrollbar-thumb {
-  background: #00d4aa;
+  background: #494455;
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #00ff41;
+  background: #948ea1;
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -51,7 +50,6 @@ function VerifyEmailContent() {
                 throw new Error(data.detail || "Verification failed");
             }
 
-            // Successfully verified! Save the newly issued access tokens explicitly now.
             localStorage.setItem("access_token", data.access_token);
             localStorage.setItem("refresh_token", data.refresh_token);
             localStorage.setItem("user", JSON.stringify(data.user));
@@ -105,26 +103,33 @@ function VerifyEmailContent() {
 
     return (
         <div className="w-full max-w-md text-center">
-            <div className="w-16 h-16 mx-auto relative mb-6">
-                <Image src="/logo.png" alt="ReconScience" fill className="object-contain" />
+            <div className="w-12 h-12 mx-auto bg-primary-container rounded-xl flex items-center justify-center mb-6">
+                <span
+                    className="material-symbols-outlined text-on-primary-container text-2xl"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                    radar
+                </span>
             </div>
 
             {(status === "pending" || status === "error") && (
-                <form onSubmit={handleVerifySubmit} className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[#00d4aa]/10 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-[#00d4aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
+                <form
+                    onSubmit={handleVerifySubmit}
+                    className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-8"
+                >
+                    <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-primary/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-2xl">mail</span>
                     </div>
-                    <h1 className="text-xl font-bold text-gray-100 mb-2">Check Your Email</h1>
-                    <p className="text-gray-400 text-sm mb-6">
-                        We've sent a 6-digit verification code to <br/>
-                        <span className="text-[#00d4aa] font-mono">{email}</span><br/>
+                    <h1 className="text-xl font-headline font-bold text-on-surface mb-2">Check Your Email</h1>
+                    <p className="text-on-surface-variant text-sm mb-6 font-body">
+                        We&apos;ve sent a 6-digit verification code to <br />
+                        <span className="text-primary font-mono font-medium">{email}</span><br />
                         Please enter it below.
                     </p>
 
                     {status === "error" && (
-                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                        <div className="mb-5 p-4 bg-error-container/20 border border-error/30 rounded-xl text-error text-sm flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">error</span>
                             {error}
                         </div>
                     )}
@@ -136,14 +141,14 @@ function VerifyEmailContent() {
                             onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
                             required
                             placeholder="• • • • • •"
-                            className="w-full text-center tracking-[0.5em] font-mono text-3xl bg-[#0a0a0f] border border-gray-800 rounded-lg px-2 py-4 text-[#00d4aa] placeholder-gray-600 focus:border-[#00d4aa]/50 focus:ring-1 focus:ring-[#00d4aa]/20 transition-all font-bold"
+                            className="w-full text-center tracking-[0.5em] font-mono text-3xl bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-2 py-4 text-primary placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all font-bold outline-none"
                         />
                     </div>
 
                     <div className="space-y-3">
                         <button
                             type="submit"
-                            className="w-full py-2.5 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all"
+                            className="w-full py-3.5 bg-primary-container hover:bg-[#8433c4] text-on-primary-container font-headline font-bold rounded-xl transition-all active:scale-[0.98]"
                         >
                             Verify Email
                         </button>
@@ -151,14 +156,14 @@ function VerifyEmailContent() {
                             type="button"
                             onClick={handleResend}
                             disabled={resendLoading || resendSuccess || !email}
-                            className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium rounded-lg transition-all disabled:opacity-50"
+                            className="w-full py-3 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-headline font-medium rounded-xl transition-all disabled:opacity-50"
                         >
                             {resendLoading ? "Sending..." : resendSuccess ? "OTP Sent!" : "Resend Code"}
                         </button>
                         <button
                             type="button"
                             onClick={handleLogout}
-                            className="w-full py-2 text-gray-500 hover:text-gray-400 text-sm font-medium transition-all"
+                            className="w-full py-2 text-slate-500 hover:text-on-surface-variant text-sm font-body transition-all"
                         >
                             Use Different Email
                         </button>
@@ -167,37 +172,32 @@ function VerifyEmailContent() {
             )}
 
             {status === "verifying" && (
-                <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[#00d4aa]/10 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-[#00d4aa] animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
+                <div className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-8">
+                    <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-primary/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-2xl animate-spin">progress_activity</span>
                     </div>
-                    <h1 className="text-xl font-bold text-gray-100 mb-2">Verifying Code</h1>
-                    <p className="text-gray-400 text-sm">Please wait...</p>
+                    <h1 className="text-xl font-headline font-bold text-on-surface mb-2">Verifying Code</h1>
+                    <p className="text-on-surface-variant text-sm font-body">Please wait...</p>
                 </div>
             )}
 
             {status === "success" && (
-                <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+                <div className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-8">
+                    <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-emerald-400 text-2xl">check_circle</span>
                     </div>
-                    <h1 className="text-xl font-bold text-gray-100 mb-2">Email Verified!</h1>
-                    <p className="text-gray-400 text-sm mb-6">Your account is now active. You can start scanning.</p>
+                    <h1 className="text-xl font-headline font-bold text-on-surface mb-2">Email Verified!</h1>
+                    <p className="text-on-surface-variant text-sm mb-6 font-body">Your account is now active. You can start scanning.</p>
                     <Link
                         href="/scan"
-                        className="block w-full py-2.5 bg-[#00d4aa] hover:bg-[#00b894] text-[#0a0a0f] font-semibold rounded-lg transition-all text-center"
+                        className="block w-full py-3.5 bg-primary-container hover:bg-[#8433c4] text-on-primary-container font-headline font-bold rounded-xl transition-all text-center active:scale-[0.98]"
                     >
                         Go to Scanner
                     </Link>
                 </div>
             )}
 
-            <p className="mt-6 text-gray-600 text-xs">
+            <p className="mt-8 text-slate-600 text-xs font-headline tracking-widest uppercase">
                 © 2026 Alif. All rights reserved.
             </p>
         </div>
@@ -206,17 +206,14 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
     return (
-        <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4">
+        <div className="min-h-screen bg-[#12131c] flex items-center justify-center px-4">
             <Suspense fallback={
                 <div className="w-full max-w-md text-center">
-                    <div className="bg-[#12121a] border border-gray-800/50 rounded-lg p-6">
-                        <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-[#00d4aa]/10 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-[#00d4aa] animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
+                    <div className="bg-surface-container-low border border-outline-variant/10 rounded-2xl p-8">
+                        <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-primary/10 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-primary text-2xl animate-spin">progress_activity</span>
                         </div>
-                        <p className="text-gray-400 text-sm">Loading...</p>
+                        <p className="text-on-surface-variant text-sm font-body">Loading...</p>
                     </div>
                 </div>
             }>
