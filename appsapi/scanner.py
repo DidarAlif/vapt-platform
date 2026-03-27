@@ -1,6 +1,7 @@
 """
 ReconScience Security Scanner - Full Nuclei Power
 Comprehensive scanning leveraging Nuclei's 9000+ templates with real-time streaming.
+Fixed CLI flags, protocol-type filtering, and redesigned scan profiles.
 """
 import subprocess
 import json
@@ -29,84 +30,159 @@ print(f"[Scanner Init] Nuclei available: {NUCLEI_AVAILABLE}")
 
 
 # ============== NUCLEI SCAN PROFILES ==============
-# Each mode has DISTINCT templates for different purposes
+# Each mode uses protocol-type filtering + tags for precise template selection.
+# Key insight: `-tags` ONLY matches templates with those exact tags.
+# `-type` matches by protocol which catches ALL templates of that type.
 
 NUCLEI_PROFILES = {
     "quick": {
-        # Quick: Technology fingerprinting and basic exposures ONLY
-        "tags": "tech,favicon,waf-detect,fingerprint",
-        "exclude_tags": "cve,vulnerability,dos,fuzz,intrusive,brute-force,sqli,xss,rce,lfi,ssrf",
-        "severity": "info,low",
+        # Quick: Fast HTTP-based recon — tech fingerprinting, exposed panels, basic misconfigs
+        # Uses -type http to match ALL HTTP templates, then filters by tags for recon-relevant ones
+        "type": "http",
+        "tags": "tech,favicon,waf-detect,fingerprint,misconfig,exposure,panel,detect,login,default-login,wp-plugin,joomla,drupal,apache,nginx,iis",
+        "exclude_tags": "dos,fuzz,intrusive,brute-force",
+        "severity": "info,low,medium",
         "rate_limit": 150,
         "concurrency": 25,
+        "bulk_size": 25,
         "timeout": 8,
         "retries": 1,
-        "max_time": 90,  # 1.5 minutes
-        "description": "Quick technology fingerprinting and detection"
+        "max_time": 120,  # 2 minutes
+        "follow_redirects": True,
+        "description": "Quick HTTP recon — tech fingerprinting, exposed panels, basic misconfigs"
     },
     "full": {
-        # Full: Comprehensive vulnerability scanning with all CVEs
-        "tags": "cve,cve2024,cve2023,cve2022,cve2021,vulnerability,rce,sqli,xss,ssrf,lfi,rfi,auth-bypass,exposure,misconfig,default-login,takeover,injection",
-        "exclude_tags": "dos,fuzz,intrusive,brute-force",
-        "severity": "low,medium,high,critical",
-        "rate_limit": 80,
-        "concurrency": 40,
+        # Full: THE comprehensive scan — run ALL templates across ALL severities.
+        # NO tag whitelist — let Nuclei run its full 9000+ template library.
+        # Only exclude truly dangerous/noisy categories.
+        "type": None,  # No type filter = scan all protocol types
+        "tags": None,  # No tag filter = use ALL templates
+        "exclude_tags": "dos,fuzz,intrusive",
+        "severity": "info,low,medium,high,critical",
+        "rate_limit": 100,
+        "concurrency": 50,
+        "bulk_size": 25,
         "timeout": 15,
         "retries": 2,
-        "max_time": 600,  # 10 minutes
-        "description": "Comprehensive CVE and vulnerability scanning"
+        "max_time": 900,  # 15 minutes
+        "follow_redirects": True,
+        "description": "Comprehensive scan — ALL templates, ALL severities"
     },
     "network": {
-        # Network: SSL, DNS, ports, cloud services
-        "tags": "ssl,tls,dns,network,cloud,aws,azure,gcp,cdn,certificate,expired-ssl,weak-cipher,subdomain",
-        "exclude_tags": "cve,vulnerability,dos,fuzz,web,http",
+        # Network: DNS, SSL/TLS, TCP, and network protocol templates ONLY.
+        # Uses -type to select protocol-specific templates that tag filtering would miss.
+        "type": "dns,ssl,network,tcp,javascript",
+        "tags": None,  # No tag filter within these types = catch everything
+        "exclude_tags": "dos,fuzz,intrusive,brute-force",
         "severity": "info,low,medium,high,critical",
         "rate_limit": 50,
         "concurrency": 15,
+        "bulk_size": 15,
         "timeout": 20,
         "retries": 2,
-        "max_time": 300,  # 5 minutes
-        "description": "Network, SSL/TLS, and cloud infrastructure analysis"
+        "max_time": 360,  # 6 minutes
+        "follow_redirects": False,
+        "description": "Network, SSL/TLS, DNS, and TCP protocol analysis"
     },
     "custom": {
-        # Custom: User-selected categories
+        # Custom: User-selected categories via tags, all protocol types
+        "type": None,  # No protocol filter for custom
         "severity": "info,low,medium,high,critical",
         "rate_limit": 100,
         "concurrency": 30,
+        "bulk_size": 25,
         "timeout": 12,
         "retries": 2,
-        "max_time": 480,  # 8 minutes
-        "description": "Custom scan with selected categories"
+        "max_time": 600,  # 10 minutes
+        "follow_redirects": True,
+        "description": "Custom scan with user-selected categories"
     }
 }
 
-# Category to Nuclei tags mapping - DISTINCT categories
+# Category to Nuclei tags mapping — maps UI categories to ALL relevant template tags
 CATEGORY_TAGS = {
-    "cves": "cve,cve2024,cve2023,cve2022,cve2021,cve2020,vulnerability",
-    "misconfig": "misconfiguration,misconfig,default-login,exposed-panel,weak-config,security-misconfiguration",
-    "exposures": "exposure,exposed,backup,config,debug,disclosure,sensitive,.git,.env,.svn,credentials,secrets",
-    "takeovers": "takeover,subdomain-takeover,cname-takeover,dns-takeover",
-    "ssl": "ssl,tls,certificate,weak-cipher,expired-ssl,heartbleed",
+    "cves": "cve,cve2024,cve2023,cve2022,cve2021,cve2020,cve2019,cve2018,cve2017,cve2016,cve2015,cve2014,cve2013,cve2012,cve2011,cve2010,vulnerability",
+    "misconfig": "misconfig,misconfiguration,default-login,exposed-panel,weak-config,security-misconfiguration,apache,nginx,iis,tomcat",
+    "exposures": "exposure,exposed,backup,config,debug,disclosure,sensitive,credentials,secrets,token,api-key,git-config,env-file",
+    "takeovers": "takeover,subdomain-takeover,cname-takeover,dns-takeover,cname",
+    "ssl": "ssl,tls,certificate,weak-cipher,expired-ssl,heartbleed,poodle,beast,lucky13",
     "xss": "xss,cross-site-scripting,reflected-xss,stored-xss,dom-xss",
-    "sqli": "sqli,sql-injection,mysql,mssql,oracle,postgresql",
-    "lfi": "lfi,rfi,path-traversal,local-file-inclusion,remote-file-inclusion",
-    "rce": "rce,remote-code-execution,command-injection,code-execution",
-    "ssrf": "ssrf,server-side-request-forgery,url-injection",
-    "auth": "auth,authentication,login,default-login,bypass,auth-bypass",
-    "panels": "panel,admin,dashboard,login-panel,admin-panel",
-    "tech": "tech,technologies,fingerprint,detect,version,framework",
+    "sqli": "sqli,sql-injection,mysql,mssql,oracle,postgresql,blind-sqli,error-based,time-based",
+    "lfi": "lfi,rfi,path-traversal,local-file-inclusion,remote-file-inclusion,file-read",
+    "rce": "rce,remote-code-execution,command-injection,code-execution,code-injection,deserialization",
+    "ssrf": "ssrf,server-side-request-forgery,url-injection,open-redirect",
+    "auth": "auth,authentication,login,default-login,bypass,auth-bypass,idor,broken-access-control",
+    "panels": "panel,admin,dashboard,login-panel,admin-panel,cms,wp-admin,phpmyadmin",
+    "tech": "tech,technologies,fingerprint,detect,version,framework,cms,waf-detect",
 }
 
 
-def get_nuclei_tags(mode: str, categories: Optional[List[str]] = None) -> str:
+def get_nuclei_tags(mode: str, categories: Optional[List[str]] = None) -> Optional[str]:
     """Get Nuclei tags based on scan mode and categories."""
     if mode == "custom" and categories:
         tags = []
         for cat in categories:
             if cat in CATEGORY_TAGS:
                 tags.append(CATEGORY_TAGS[cat])
-        return ",".join(tags) if tags else NUCLEI_PROFILES["full"]["tags"]
-    return NUCLEI_PROFILES.get(mode, NUCLEI_PROFILES["quick"]).get("tags", "")
+        return ",".join(tags) if tags else None
+    
+    profile = NUCLEI_PROFILES.get(mode, NUCLEI_PROFILES["quick"])
+    return profile.get("tags")
+
+
+def build_nuclei_command(
+    target_url: str,
+    output_file: str,
+    profile: Dict,
+    tags: Optional[str] = None,
+    streaming: bool = False,
+) -> List[str]:
+    """
+    Build the correct Nuclei CLI command from a profile.
+    Uses proper v3 flags: -c (concurrency), -bs (bulk-size), -rl (rate-limit), etc.
+    """
+    cmd = [
+        "nuclei",
+        "-target", target_url,
+        "-jsonl",
+        "-output", output_file,
+        "-severity", profile["severity"],
+        "-rl", str(profile["rate_limit"]),
+        "-c", str(profile["concurrency"]),
+        "-bs", str(profile.get("bulk_size", 25)),
+        "-timeout", str(profile["timeout"]),
+        "-retries", str(profile["retries"]),
+        "-no-color",
+        "-ni",  # no-interactsh (short form)
+        "-stats",
+        "-si", "5" if streaming else "10",  # stats-interval (short form)
+    ]
+
+    # Protocol type filtering — the most powerful filter for mode-specific scans
+    if profile.get("type"):
+        cmd.extend(["-type", profile["type"]])
+
+    # Tag-based filtering (positive selection)
+    if tags:
+        cmd.extend(["-tags", tags])
+
+    # Tag-based exclusion (negative selection)
+    if profile.get("exclude_tags"):
+        cmd.extend(["-etags", profile["exclude_tags"]])
+
+    # Follow redirects for HTTP scans
+    if profile.get("follow_redirects"):
+        cmd.extend(["-fr"])
+
+    # Disable headless browser — faster, avoids chrome dependency
+    cmd.extend(["-headless=false"])
+
+    # Use local templates if available
+    templates_path = os.getenv("NUCLEI_TEMPLATES_PATH", "/root/nuclei-templates")
+    if os.path.exists(templates_path):
+        cmd.extend(["-t", templates_path])
+
+    return cmd
 
 
 # ============== STREAMING NUCLEI SCAN ==============
@@ -139,36 +215,23 @@ def stream_nuclei_scan(
     tags = get_nuclei_tags(scan_mode, categories)
     
     yield {"type": "status", "message": f"Initializing {scan_mode} scan...", "progress": 5}
-    yield {"type": "status", "message": f"Loading templates: {tags[:60]}...", "progress": 10}
     
-    # Build Nuclei command
-    cmd = [
-        "nuclei",
-        "-target", target_url,
-        "-jsonl",
-        "-output", str(output_file),
-        "-severity", profile["severity"],
-        "-rate-limit", str(profile["rate_limit"]),
-        "-concurrency", str(profile["concurrency"]), 
-        "-timeout", str(profile["timeout"]),
-        "-retries", str(profile["retries"]),
-        "-stats",
-        "-stats-interval", "5",
-        "-no-color",
-        "-no-interactsh",
-    ]
+    mode_desc = profile.get("description", scan_mode)
+    type_info = f" | Protocol: {profile['type']}" if profile.get("type") else " | All protocols"
+    tag_info = f" | Tags: {tags[:50]}..." if tags else " | All templates"
+    yield {"type": "status", "message": f"{mode_desc}{type_info}{tag_info}", "progress": 8}
     
-    if tags:
-        cmd.extend(["-tags", tags])
+    # Build Nuclei command using the centralized builder
+    cmd = build_nuclei_command(
+        target_url=target_url,
+        output_file=str(output_file),
+        profile=profile,
+        tags=tags,
+        streaming=True,
+    )
     
-    if "exclude_tags" in profile and profile["exclude_tags"]:
-        cmd.extend(["-exclude-tags", profile["exclude_tags"]])
-    
-    templates_path = os.getenv("NUCLEI_TEMPLATES_PATH", "/root/nuclei-templates")
-    if os.path.exists(templates_path):
-        cmd.extend(["-templates", templates_path])
-    
-    yield {"type": "status", "message": "Starting Nuclei scanner...", "progress": 15}
+    print(f"[Nuclei Stream] Command: {' '.join(cmd[:15])}...")
+    yield {"type": "status", "message": "Starting Nuclei scanner...", "progress": 12}
     
     try:
         process = subprocess.Popen(
@@ -180,11 +243,9 @@ def stream_nuclei_scan(
         )
         
         findings_count = 0
-        current_progress = 15
+        current_progress = 12
         max_time = profile["max_time"]
         
-        # Read stderr for stats (Nuclei outputs stats to stderr)
-        import select
         import time
         start_time = time.time()
         
@@ -192,7 +253,7 @@ def stream_nuclei_scan(
             elapsed = time.time() - start_time
             
             # Calculate progress based on elapsed time
-            time_progress = min(85, 15 + (elapsed / max_time) * 70)
+            time_progress = min(88, 12 + (elapsed / max_time) * 76)
             
             # Check if there are new findings in the output file
             if output_file.exists():
@@ -217,7 +278,7 @@ def stream_nuclei_scan(
                 current_progress = time_progress
                 yield {
                     "type": "status", 
-                    "message": f"Scanning... ({findings_count} findings so far)",
+                    "message": f"Scanning... ({findings_count} findings, {int(elapsed)}s elapsed)",
                     "progress": int(current_progress)
                 }
             
@@ -242,6 +303,15 @@ def stream_nuclei_scan(
                 except:
                     findings_count += 1
         
+        # Log stderr for debugging if scan returned few/no results
+        if process.stderr:
+            stderr_text = process.stderr.read()
+            if stderr_text:
+                # Extract useful stats from stderr
+                for line in stderr_text.splitlines():
+                    if "templates loaded" in line.lower() or "total" in line.lower():
+                        print(f"[Nuclei Stats] {line.strip()}")
+        
         yield {"type": "status", "message": f"Nuclei scan complete. {findings_count} findings.", "progress": 95}
         
     except FileNotFoundError:
@@ -251,21 +321,41 @@ def stream_nuclei_scan(
 
 
 def format_nuclei_finding(raw: Dict, target_url: str) -> Dict:
-    """Format a raw Nuclei finding to our standard structure."""
+    """Format a raw Nuclei JSONL finding to our standard structure."""
     info = raw.get("info", {})
     tags = info.get("tags", [])
     
-    return {
+    # Handle tags as both list and comma-separated string
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",")]
+    
+    # Extract classification info (CVE, CWE, CVSS)
+    classification = info.get("classification", {})
+    
+    finding = {
         "template_id": raw.get("template-id", raw.get("templateID", "unknown")),
         "name": info.get("name", raw.get("template-id", "Unknown")),
         "severity": info.get("severity", "info"),
+        "type": raw.get("type", "http"),
         "matched_at": raw.get("matched-at", raw.get("host", target_url)),
         "description": info.get("description", "Security finding detected by Nuclei"),
         "category": tags[0] if tags else "nuclei",
-        "reference": info.get("reference", [])[:3] if info.get("reference") else [],
+        "tags": tags[:10],  # Include up to 10 tags for context
+        "reference": info.get("reference", [])[:5] if info.get("reference") else [],
         "matcher_name": raw.get("matcher-name", ""),
+        "matcher_status": raw.get("matcher-status", True),
         "extracted_results": raw.get("extracted-results", [])[:5] if raw.get("extracted-results") else [],
+        "curl_command": raw.get("curl-command", ""),
     }
+    
+    # Add classification data if available
+    if classification:
+        finding["cve_id"] = classification.get("cve-id", [])
+        finding["cwe_id"] = classification.get("cwe-id", [])
+        finding["cvss_metrics"] = classification.get("cvss-metrics", "")
+        finding["cvss_score"] = classification.get("cvss-score", 0)
+    
+    return finding
 
 
 # ============== MAIN NUCLEI SCAN FUNCTION ==============
@@ -313,56 +403,38 @@ def run_nuclei_scan_full(
     tags = get_nuclei_tags(scan_mode, categories)
     
     print(f"[Nuclei] Mode: {scan_mode}")
-    print(f"[Nuclei] Tags: {tags[:100]}...")
+    print(f"[Nuclei] Profile: {profile['description']}")
+    print(f"[Nuclei] Type filter: {profile.get('type', 'ALL')}")
+    print(f"[Nuclei] Tags: {tags[:100] if tags else 'ALL (no tag filter)'}")
     print(f"[Nuclei] Severity: {profile['severity']}")
     print(f"[Nuclei] Max time: {profile['max_time']}s")
     
-    # Build comprehensive Nuclei command
-    cmd = [
-        "nuclei",
-        "-target", target_url,
-        "-jsonl",
-        "-output", str(output_file),
-        "-severity", profile["severity"],
-        "-rate-limit", str(profile["rate_limit"]),
-        "-concurrency", str(profile["concurrency"]), 
-        "-timeout", str(profile["timeout"]),
-        "-retries", str(profile["retries"]),
-        "-stats",
-        "-stats-interval", "10",
-        "-no-color",
-        "-silent",
-        "-no-interactsh",
-    ]
+    # Build command using centralized builder
+    cmd = build_nuclei_command(
+        target_url=target_url,
+        output_file=str(output_file),
+        profile=profile,
+        tags=tags,
+        streaming=False,
+    )
     
-    # Add tags
-    if tags:
-        cmd.extend(["-tags", tags])
-    
-    # Add exclude tags if specified
-    if "exclude_tags" in profile and profile["exclude_tags"]:
-        cmd.extend(["-exclude-tags", profile["exclude_tags"]])
-    
-    # Use local templates if available
-    templates_path = os.getenv("NUCLEI_TEMPLATES_PATH", "/root/nuclei-templates")
-    if os.path.exists(templates_path):
-        cmd.extend(["-templates", templates_path])
-        print(f"[Nuclei] Using templates from: {templates_path}")
-    
-    print(f"[Nuclei] Running command...")
+    print(f"[Nuclei] Full command: {' '.join(cmd)}")
     
     try:
         result = subprocess.run(
             cmd, 
             check=False, 
-            timeout=profile["max_time"],
+            timeout=profile["max_time"] + 30,  # Buffer beyond max_time
             capture_output=True,
             text=True
         )
         
         if result.stderr:
-            if "error" in result.stderr.lower():
-                print(f"[Nuclei] Stderr: {result.stderr[:500]}")
+            # Log template loading stats
+            for line in result.stderr.splitlines():
+                line_lower = line.lower()
+                if any(kw in line_lower for kw in ["templates loaded", "total", "error", "warning"]):
+                    print(f"[Nuclei] {line.strip()}")
         
         print(f"[Nuclei] Scan completed with return code: {result.returncode}")
         
@@ -570,7 +642,7 @@ def run_tech_detection(target_url: str, scan_id: str) -> List[Dict]:
 
 
 def run_network_scan(target_url: str, scan_id: str) -> List[Dict]:
-    """Network scan using Nuclei's network templates."""
+    """Network scan using Nuclei's network/SSL/DNS templates."""
     if not NUCLEI_AVAILABLE:
         return []
     
