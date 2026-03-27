@@ -1,10 +1,13 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import AuthenticatedLayout from "../../components/AuthenticatedLayout";
 
 export default function LearnPage() {
   return (
-    <div className="min-h-screen bg-[#12131c] text-on-surface py-16 px-6">
-      <div className="max-w-4xl mx-auto space-y-10">
+    <AuthenticatedLayout>
+      <div className="max-w-5xl mx-auto px-10 py-12 space-y-10">
 
         {/* Header */}
         <div className="relative">
@@ -104,6 +107,6 @@ export default function LearnPage() {
           </div>
         </section>
       </div>
-    </div>
+    </AuthenticatedLayout>
   );
 }

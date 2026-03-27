@@ -1,9 +1,12 @@
+"use client";
+
 import React from "react";
+import AuthenticatedLayout from "../../components/AuthenticatedLayout";
 
 export default function SafetyPage() {
   return (
-    <div className="min-h-screen bg-[#12131c] text-on-surface py-16 px-6">
-      <div className="max-w-4xl mx-auto">
+    <AuthenticatedLayout>
+      <div className="max-w-5xl mx-auto px-10 py-12">
 
         {/* Header */}
         <div className="text-center mb-16">
@@ -76,6 +79,6 @@ export default function SafetyPage() {
 
         </div>
       </div>
-    </div>
+    </AuthenticatedLayout>
   );
 }

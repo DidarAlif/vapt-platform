@@ -1,10 +1,11 @@
 import React from "react";
 import Link from "next/link";
+import AuthenticatedLayout from "../../components/AuthenticatedLayout";
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-[#12131c] text-on-surface py-16 px-6">
-      <div className="max-w-4xl mx-auto space-y-12">
+    <AuthenticatedLayout>
+      <div className="max-w-5xl mx-auto px-10 py-12 space-y-12">
 
         {/* Header */}
         <section className="bg-surface-container-low border border-outline-variant/10 p-8 rounded-2xl relative overflow-hidden">
@@ -92,6 +93,6 @@ export default function AboutPage() {
           </Link>
         </div>
       </div>
-    </div>
+    </AuthenticatedLayout>
   );
 }
