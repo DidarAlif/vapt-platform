@@ -67,12 +67,6 @@ uvicorn main:app --reload
 ```
 
 ### Environment Variables
-Create a `.env` file in `appsapi/`:
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/reconscience
-JWT_SECRET_KEY=your-secret-key
-NUCLEI_TEMPLATES_PATH=/path/to/nuclei-templates
-```
 
 ## 📡 API Endpoints
 
